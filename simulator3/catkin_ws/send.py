@@ -11,7 +11,7 @@ def ego_position_callback(msg):
 def timer_callback(event):
     global latest_position
     if latest_position is not None:
-        rospy.loginfo(f"Vehicle Position - x: {latest_position.x}, y: {latest_position.y}, z: {latest_position.z}")
+        rospy.loginfo(f"Vehicle Position - x: {latest_position.x:.2f}, y: {latest_position.y:.2f}")
 
 def listener():
     rospy.init_node('ego_position_listener', anonymous=True)
