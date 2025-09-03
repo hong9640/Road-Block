@@ -20,21 +20,22 @@ from fastapi.middleware.cors import CORSMiddleware
 load_dotenv()
 
 # 이제 다른 모듈들을 상대 경로로 안전하게 임포트합니다.
-# from app.db import create_db_and_tables
+from app.db import create_db_and_tables
+from app.models import models
 
 
 
 # Lifespan 컨텍스트 매니저 정의
-# @asynccontextmanager
-# async def lifespan(app: FastAPI):
-#     """애플리케이션 시작과 종료 시 처리할 로직"""
-#     print("--- FastAPI app startup: creating DB tables... ---")
-#     await create_db_and_tables()
-#     yield
-#     print("--- FastAPI app shutdown. ---")
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    """애플리케이션 시작과 종료 시 처리할 로직"""
+    print("--- FastAPI app startup: creating DB tables... ---")
+    await create_db_and_tables()
+    yield
+    print("--- FastAPI app shutdown. ---")
 
 # FastAPI 앱 인스턴스 생성
-app = FastAPI()
+app = FastAPI(lifespan=lifespan)
 
 # --- 전역 예외 핸들러 --- 
 
