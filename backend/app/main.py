@@ -22,6 +22,8 @@ load_dotenv()
 # 이제 다른 모듈들을 상대 경로로 안전하게 임포트합니다.
 from app.db import create_db_and_tables
 from app.models import models
+from app.routers import map_router, vehicle_router, websocket_router
+
 
 
 
@@ -55,21 +57,9 @@ app.add_middleware(
 )
 
 # --- 라우터 등록 --- 
-
-# --- WebSocket 엔드포인트 ---
-@app.websocket("/ws")
-async def websocket_endpoint(websocket: WebSocket):
-    """
-    Frontend 클라이언트와의 WebSocket 연결을 처리합니다.
-    """
-    await websocket.accept()
-    try:
-        while True:
-            data = await websocket.receive_text()
-            await websocket.send_text(f"Message text was: {data}")
-    except WebSocketDisconnect:
-        print("클라이언트와 연결이 끊어졌습니다.")
-
+app.include_router(map_router.router)
+app.include_router(vehicle_router.router)
+app.include_router(websocket_router.router)
 
 # 기본 루트 엔드포인트
 @app.get("/")

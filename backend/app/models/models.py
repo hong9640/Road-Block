@@ -17,20 +17,18 @@ class Map(SQLModel, table=True):
 
 class VehicleLocation(SQLModel, table=True):
     location_id: Optional[int] = Field(default=None, primary_key=True)
+    vehicle_id: int = Field(foreign_key="vehicle.vehicle_id")
     position_x: float
     position_y: float
-    position_z: float
-    timestamp: datetime = Field(
+    created_at: datetime = Field(
         default=None,
         sa_column_kwargs={"server_default": text("now()")},
         nullable=False
     )
-    vehicle_id: int = Field(foreign_key="vehicle.vehicle_id")
     vehicle: "Vehicle" = Relationship(back_populates="locations")
 
 
 class PoliceCar(SQLModel, table=True):
-    
     police_id: Optional[int] = Field(default=None, foreign_key="vehicle.vehicle_id", primary_key=True)
     fuel: int = Field(default=100, nullable=False)
     collision_count: int = Field(default=0, nullable=False)
@@ -45,9 +43,9 @@ class PoliceCar(SQLModel, table=True):
     vehicle: "Vehicle" = Relationship(back_populates="police_car")
 
 
-class RunnerCar(SQLModel, table=True):
-    
-    runner_id: Optional[int] = Field(default=None, foreign_key="vehicle.vehicle_id", primary_key=True)
+class Event(SQLModel, table=True):
+    event_id: Optional[int] = Field(default=None, primary_key=True)
+    runner_id: int = Field(foreign_key="vehicle.vehicle_id", nullable=False)
     
     # enums.py에서 가져온 RunnerCarStatus를 사용합니다.
     status: enums.RunnerCarStatus = Field(
@@ -55,8 +53,12 @@ class RunnerCar(SQLModel, table=True):
         default=enums.RunnerCarStatus.RUN,
         nullable=False)
     )
-
-    vehicle: "Vehicle" = Relationship(back_populates="runner_car")
+    created_at: datetime = Field(
+        default=None,
+        sa_column_kwargs={"server_default": text("now()")},
+        nullable=False
+    )
+    vehicle: "Vehicle" = Relationship(back_populates="event")
 
 
 class Vehicle(SQLModel, table=True):
@@ -79,4 +81,4 @@ class Vehicle(SQLModel, table=True):
     # Relationships
     locations: List["VehicleLocation"] = Relationship(back_populates="vehicle")
     police_car: Optional[PoliceCar] = Relationship(back_populates="vehicle")
-    runner_car: Optional[RunnerCar] = Relationship(back_populates="vehicle")
+    events: List["Event"] = Relationship(back_populates="vehicle")
