@@ -58,7 +58,7 @@ class Event(SQLModel, table=True):
         sa_column_kwargs={"server_default": text("now()")},
         nullable=False
     )
-    vehicle: "Vehicle" = Relationship(back_populates="event")
+    vehicle: "Vehicle" = Relationship(back_populates="events")
 
 
 class Vehicle(SQLModel, table=True):

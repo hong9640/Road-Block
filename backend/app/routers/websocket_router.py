@@ -1,28 +1,50 @@
-# app/router/websocket_router.py
+from fastapi import APIRouter, WebSocket, WebSocketDisconnect
+from app.services import websocket_service
 
-from fastapi import APIRouter, WebSocket
-from starlette.websockets import WebSocketDisconnect
+# --- 연결 관리자 ---
+class ConnectionManager:
+    def __init__(self):
+        # 지금은 모든 클라이언트를 하나의 리스트에서 관리합니다.
+        # 추후 프론트엔드/임베디드 구분이 필요하면 self.front_connections 등으로 나눌 수 있습니다.
+        self.active_connections: list[WebSocket] = []
 
-# 라우터를 생성합니다. 파일 단위로 관리하므로 prefix는 설정하지 않습니다.
-router = APIRouter(
-    tags=["WebSockets"],
-)
+    async def connect(self, websocket: WebSocket):
+        await websocket.accept()
+        self.active_connections.append(websocket)
 
-# ============================================
-#               Vehicle WebSockets
-# ============================================
+    def disconnect(self, websocket: WebSocket):
+        self.active_connections.remove(websocket)
+
+    async def broadcast(self, message: bytes):
+        for connection in self.active_connections:
+            await connection.send_bytes(message)
+
+manager = ConnectionManager()
+router = APIRouter(tags=["WebSockets"])
+
+# --- 웹소켓 엔드포인트 ---
 
 @router.websocket("/ws/vehicles")
-async def websocket_vehicle_registration(websocket: WebSocket):
-    """차량 등록을 위한 웹소켓"""
-    await websocket.accept()
+async def websocket_vehicle_register(websocket: WebSocket):
+    await manager.connect(websocket)
     try:
         while True:
-            data = await websocket.receive_text()
-            await websocket.send_text(f"Message text was: {data}")
-    except WebSocketDisconnect:
-        print("Client disconnected from vehicle registration")
+            data = await websocket.receive_bytes()
+            
+            ros_response, front_event = await websocket_service.handle_vehicle_registration(data)
 
+            # 1. 요청한 ROS 클라이언트에게 직접 응답
+            await websocket.send_bytes(ros_response)
+
+            # 2. 프론트엔드용 이벤트/에러가 있다면 전체 브로드캐스트
+            if front_event:
+                await manager.broadcast(front_event)
+
+    except WebSocketDisconnect:
+        manager.disconnect(websocket)
+    except Exception as e:
+        print(f"Unhandled error in WebSocket: {e}")
+        manager.disconnect(websocket)
 
 @router.websocket("/ws/vehicles/{vehicle_id}/location")
 async def websocket_vehicle_location_update(websocket: WebSocket, vehicle_id: str):

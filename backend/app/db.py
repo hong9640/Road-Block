@@ -2,10 +2,13 @@
 
 import os
 import json
-from typing import AsyncGenerator
+from typing import AsyncGenerator, Optional
 
 from sqlalchemy.ext.asyncio import create_async_engine, AsyncSession, async_sessionmaker
-from sqlmodel import SQLModel
+from sqlmodel import SQLModel, Field, select
+from app.schemas.websocket_schema import VehicleRegistrationRequest
+# (수정) models.py에서 정의한 실제 데이터베이스 모델들을 가져옵니다.
+from app.models.models import Vehicle
 
 
 DB_HOST = os.getenv("DB_HOST")
@@ -56,3 +59,17 @@ async def create_db_and_tables():
     async with engine.begin() as conn:
         await conn.run_sync(SQLModel.metadata.create_all)
     print("--- Database tables created successfully. ---")
+
+async def is_car_name_exists(session: AsyncSession, car_name: str) -> bool:
+    """주어진 차량 이름이 데이터베이스에 이미 존재하는지 확인합니다."""
+    statement = select(Vehicle).where(Vehicle.car_name == car_name)
+    result = await session.execute(statement)
+    return result.first() is not None
+
+async def save_vehicle(session: AsyncSession, vehicle_data: VehicleRegistrationRequest) -> Vehicle:
+    """새로운 차량 정보를 데이터베이스에 저장하고, 생성된 객체를 반환합니다."""
+    db_vehicle = Vehicle.model_validate(vehicle_data)
+    session.add(db_vehicle)
+    await session.commit()
+    await session.refresh(db_vehicle)
+    return db_vehicle
