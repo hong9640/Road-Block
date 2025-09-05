@@ -6,16 +6,19 @@ class MessageType(IntEnum):
     REGISTER_REQUEST = 0xA0
     REGISTER_SUCCESS = 0xA1
     NACK_ERROR = 0x02
-
+    STATUS_UPDATE_REQUEST = 0x12
     # Backend -> Frontend
     SYSTEM_ERROR = 0x03
     EVENT_VEHICLE_REGISTERED = 0xA2
+    STATE_UPDATE = 0x10
+    POSITION_BROADCAST_2D = 0x11
 
 
 class RosErrorCode(IntEnum):
     """ROS(임베디드) 통신 에러 코드 (NACK_ERROR 용)"""
     INVALID_FORMAT = 1
     DUPLICATE_NAME = 2
+    INVALID_DATA = 3
 
 
 class FrontErrorCode(IntEnum):

@@ -9,6 +9,6 @@ class PoliceCarStatusEnum(str, enum.Enum):
     HALF_DESTROYED = "half_destroyed"
     COMPLETE_DESTROYED = "complete_destroyed"
 
-class RunnerCarStatus(str, enum.Enum):
+class EventStatus(str, enum.Enum):
     RUN = "run"
     CATCH = "catch"
