@@ -21,7 +21,7 @@ def talker():
 
     '''
 
-    publisher = rospy.Publisher('/ctrl_cmd', CtrlCmd, queue_size=10)
+    publisher = rospy.Publisher('/Ego-2/ctrl_cmd', CtrlCmd, queue_size=10)
 
     rospy.init_node('Ego_Control_Command', anonymous=True)
 
@@ -46,7 +46,7 @@ def talker():
     ctrl_cmd = CtrlCmd()
 
     ctrl_cmd.longlCmdType = 2     # Velocity control
-    ctrl_cmd.velocity     = 15.0   # m/s (약 10.8 km/h)
+    ctrl_cmd.velocity     = 30.0   # m/s (약 10.8 km/h)
     ctrl_cmd.steering     = 0.0   # rad (좌우 조향)
     ctrl_cmd.accel        = 0.5   # 등속 모드에선 의미 없음
     ctrl_cmd.brake        = 0.0
