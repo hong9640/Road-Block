@@ -15,4 +15,4 @@ COPY ./backend /app
 
 # 5. 서버 실행: 컨테이너가 시작될 때 uvicorn 서버를 실행합니다.
 #    컨테이너 내부에서는 8000번 포트를 사용합니다. (외부 접속은 Nginx가 담당)
-CMD ["uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8000"]
+CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000"]
