@@ -1,0 +1,46 @@
+# .gitlab-ci.yml
+
+# 파이프라인은 두 단계로 구성됩니다: build와 deploy
+stages:
+  - build
+  - deploy
+
+# 1. 빌드 단계: Docker 이미지를 만들고 GitLab Registry에 올립니다.
+build-job:
+  stage: build
+  # Docker 명령어를 사용하기 위해 Docker 이미지를 서비스로 사용합니다.
+  image: docker:20.10.16
+  services:
+    - docker:20.10.16-dind
+  # 스크립트 실행 전, GitLab Registry에 로그인합니다.
+  before_script:
+    - docker login -u $CI_REGISTRY_USER -p $CI_REGISTRY_PASSWORD $CI_REGISTRY
+  script:
+    # Dockerfile을 이용해 이미지를 빌드합니다.
+    # $CI_COMMIT_SHA는 커밋 해시로, 이미지에 고유한 태그를 부여합니다.
+    - docker build -t $CI_REGISTRY_IMAGE:$CI_COMMIT_SHA .
+    # 빌드된 이미지를 GitLab Registry에 푸시합니다.
+    - docker push $CI_REGISTRY_IMAGE:$CI_COMMIT_SHA
+  # main 브랜치에 변경이 있을 때만 이 작업을 실행합니다.
+  # 현재는 be 브렌치에서 하지만 마지막에는 master로 바꿉니다.
+  only:
+    - be
+
+# 2. 배포 단계: EC2 서버에 접속해서 최신 이미지를 실행합니다.
+deploy-job:
+  stage: deploy
+  # 이 작업은 EC2 서버에 설치된 GitLab Runner가 실행해야 합니다.
+  # 'deploy-server'는 Runner 등록 시 설정할 태그입니다.
+  tags:
+    - deploy-server
+  script:
+    # GitLab Registry에 로그인합니다.
+    - docker login -u $CI_REGISTRY_USER -p $CI_REGISTRY_PASSWORD $CI_REGISTRY
+    # 기존에 실행 중이던 컨테이너가 있다면 내립니다.
+    - docker-compose down
+    # docker-compose.yml 파일을 이용해 새 버전의 컨테이너를 실행합니다.
+    # yml 파일의 image: 태그에 있는 변수들이 이때 채워집니다.
+    - docker-compose up -d
+  # 현재는 be 브렌치에서 하지만 마지막에는 master로 바꿉니다.
+  only:
+    - be
