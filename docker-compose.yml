@@ -9,7 +9,7 @@ services:
     build: .
     # GitLab CI/CD에서 빌드한 이미지를 사용할 것이므로, 이미지 이름을 지정합니다.
     # ${CI_REGISTRY_IMAGE}는 GitLab CI/CD가 자동으로 채워주는 변수입니다.
-    image: ${CI_REGISTRY_IMAGE}:${CI_COMMIT_SHA}
+    # image: ${CI_REGISTRY_IMAGE}:${CI_COMMIT_SHA}
     # 컨테이너 이름을 backend-container로 지정합니다.
     container_name: backend-container
 
