@@ -4,7 +4,7 @@
 
 
 [📓 기능 명세서](https://www.notion.so/262546b4de0280d3a988ea11e464ff57) <br> 
-[🗒️ API 명세서](https://magnificent-lighter-489.notion.site/API-262546b4de0280779251d4816ce29941?pvs=74) 
+[🗒️ API 명세서](https://magnificent-lighter-489.notion.site/API-262546b4de0280779251d4816ce29941?pvs=74)<br>
 [🎨 Figma Lo-Fi 디자인](https://www.figma.com/design/654U42E22pFG5uiDIWTAFy/%ED%8A%B9%ED%99%94-%ED%8E%98%EC%9D%B4%EC%A7%80-%EB%A0%88%EC%9D%B4%EC%95%84%EC%9B%83-%EC%B4%88%EC%95%88?node-id=0-1&t=uAdzKVNnHfYwWz8f-1)
 
 
