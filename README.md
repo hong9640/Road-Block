@@ -35,3 +35,10 @@
 - React, FastAPI, MySQL, AWS, WebSocket
 
 ![alt text](./docs/슬라이드8.PNG) ![alt text](./docs/슬라이드9.PNG)
+
+
+## 프로젝트 구조도
+![alt text](./docs/structure.png)
+
+## 프로젝트 순서도
+![alt text](./docs/workflow.png)
