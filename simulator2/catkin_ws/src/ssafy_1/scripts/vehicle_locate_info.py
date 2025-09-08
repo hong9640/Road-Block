@@ -7,7 +7,7 @@ import rospy
 from morai_msgs.msg import EgoVehicleStatus
 
 # 기본 URL 주소
-BASE_URL = "ws://70.12.246.49:8000/ws/vehicles"
+BASE_URL = "ws://52.78.193.190:80/ws/vehicles"
 
 def build_location_packet(vehicle_id: int, pos_x: float, pos_y: float) -> bytes:
     """

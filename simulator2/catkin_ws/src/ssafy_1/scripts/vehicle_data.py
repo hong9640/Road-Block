@@ -6,7 +6,7 @@ import websocket
 import rospy
 from morai_msgs.msg import EgoVehicleStatus
 
-URL = "ws://70.12.246.49:8000/ws/vehicles"  # 필요 시 /ws 로 교체
+URL = "ws://52.78.193.190:80/ws/vehicles"  # 필요 시 /ws 로 교체
 VEHICLE_TYPE = 0
 CAR_NAME = "EGO_0"   # 10바이트 (부족하면 NULL padding, 넘치면 잘림)
 MESSAGE_TYPE = 0xA0  # REGISTER_REQUEST
