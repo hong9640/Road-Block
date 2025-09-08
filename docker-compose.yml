@@ -16,7 +16,7 @@ services:
       - "80:80"
       - "443:443" # HTTPS 포트 추가
     volumes:
-      - ./nginx/default.conf:/etc/nginx/conf.d/default.conf
+      - ./nginx:/etc/nginx/conf.d
       # Certbot 시스템 폴더를 컨테이너와 직접 연결 (가장 중요!)
       - /etc/letsencrypt:/etc/letsencrypt
       - /var/www/certbot:/var/www/certbot
