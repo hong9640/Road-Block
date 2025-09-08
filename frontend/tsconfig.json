@@ -11,6 +11,16 @@
       "@components/*": ["src/components/*"],
       "@features/*": ["src/features/*"],
       "@assets/*": ["src/assets/*"]
-    }
+    },
+
+    "target": "ESNext",             // 최신 JS로 트랜스파일
+    "module": "ESNext",             // 모듈 시스템 (Vite, CRA 등 환경에 맞게)
+    "jsx": "react-jsx",             // React 17+ JSX 변환 방식
+    "moduleResolution": "node",
+    "esModuleInterop": true,
+    "allowSyntheticDefaultImports": true,
+    "strict": true,                 // 타입 검사 강화
+    "forceConsistentCasingInFileNames": true,
+    "skipLibCheck": true
   }
 }
