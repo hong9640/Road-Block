@@ -3,28 +3,24 @@
 version: '3.8'
 
 services:
-  # 1. FastAPI 백엔드 서비스 정의
   backend:
-    # 현재 폴더의 Dockerfile을 사용해 이미지를 빌드합니다.
     build: .
-    # GitLab CI/CD에서 빌드한 이미지를 사용할 것이므로, 이미지 이름을 지정합니다.
-    # ${CI_REGISTRY_IMAGE}는 GitLab CI/CD가 자동으로 채워주는 변수입니다.
-    # image: ${CI_REGISTRY_IMAGE}:${CI_COMMIT_SHA}
-    # 컨테이너 이름을 backend-container로 지정합니다.
+    image: ${CI_REGISTRY_IMAGE}:${CI_COMMIT_SHA}
     container_name: backend-container
 
-  # 2. Nginx 서비스 정의
   nginx:
-    # 공식 Nginx 이미지를 사용합니다.
     image: nginx:latest
-    # 컨테이너 이름을 nginx-container로 지정합니다.
     container_name: nginx-container
     ports:
-      # 내 EC2 서버의 80번 포트와 Nginx 컨테이너의 80번 포트를 연결합니다.
       - "80:80"
+      # HTTPS를 위한 443 포트를 추가합니다.
+      - "443:443"
     volumes:
-      # 위에서 만든 nginx.conf 파일을 컨테이너 안의 설정 파일 경로에 덮어씌웁니다.
-      - ./nginx.conf:/etc/nginx/nginx.conf
-    # 반드시 backend 서비스가 먼저 실행된 후에 nginx가 실행되도록 의존성을 설정합니다.
+      # 위에서 만든 Nginx 설정 폴더를 연결합니다.
+      - ./nginx:/etc/nginx/conf.d
+      # Certbot이 인증서를 저장할 폴더를 연결합니다.
+      - ./certbot/conf:/etc/letsencrypt
+      # Certbot이 도메인 소유권 인증 파일을 저장할 폴더를 연결합니다.
+      - ./certbot/www:/var/www/certbot
     depends_on:
       - backend
