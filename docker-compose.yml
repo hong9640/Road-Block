@@ -5,22 +5,20 @@ version: '3.8'
 services:
   backend:
     build: .
-    # image: ${CI_REGISTRY_IMAGE}:${CI_COMMIT_SHA}
     container_name: backend-container
+    # CI/CD를 사용하지 않는 수동 배포이므로 image 라인은 주석 처리합니다.
+    # image: ${CI_REGISTRY_IMAGE}:${CI_COMMIT_SHA}
 
   nginx:
     image: nginx:latest
     container_name: nginx-container
     ports:
       - "80:80"
-      # HTTPS를 위한 443 포트를 추가합니다.
-      - "443:443"
+      - "443:443" # HTTPS 포트 추가
     volumes:
-      # 위에서 만든 Nginx 설정 폴더를 연결합니다.
       - ./nginx:/etc/nginx/conf.d
-      # Certbot이 인증서를 저장할 폴더를 연결합니다.
-      - ./certbot/conf:/etc/letsencrypt
-      # Certbot이 도메인 소유권 인증 파일을 저장할 폴더를 연결합니다.
-      - ./certbot/www:/var/www/certbot
+      # Certbot 시스템 폴더를 컨테이너와 직접 연결 (가장 중요!)
+      - /etc/letsencrypt:/etc/letsencrypt
+      - /var/www/certbot:/var/www/certbot
     depends_on:
       - backend
