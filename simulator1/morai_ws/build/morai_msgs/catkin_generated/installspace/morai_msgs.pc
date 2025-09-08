@@ -1,8 +1,0 @@
-prefix=/home/ubuntu/S13P21A507/simulator1/morai_ws/install
-
-Name: morai_msgs
-Description: Description of morai_msgs
-Version: 0.0.0
-Cflags: -I${prefix}/include
-Libs: -L${prefix}/lib 
-Requires: std_msgs geometry_msgs message_runtime
