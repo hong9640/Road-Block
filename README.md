@@ -33,4 +33,5 @@
 
 ### 웹 관제 시스템
 - React, FastAPI, MySQL, AWS, WebSocket
+
 ![alt text](슬라이드8.PNG) ![alt text](슬라이드9.PNG)
