@@ -61,8 +61,8 @@ async def handle_vehicle_registration(data: bytes) -> Tuple[bytes, Optional[byte
             raise ValueError("Invalid message type")
 
         data_to_verify = data[:16]
-        # if not hmac.compare_digest(_calculate_hmac(data_to_verify), received_hmac):
-        #     raise ValueError("HMAC validation failed")
+        if not hmac.compare_digest(_calculate_hmac(data_to_verify), received_hmac):
+            raise ValueError("HMAC validation failed")
 
         request_data = VehicleRegistrationRequest(
             vehicle_id=vehicle_id,
@@ -142,9 +142,9 @@ async def handle_location_update(data: bytes) -> Optional[bytes]:
         ros_vehicle_id, pos_x, pos_y, received_hmac = struct.unpack('>Iff16s', data)
 
         data_to_verify = data[:12]
-        # if not hmac.compare_digest(_calculate_hmac(data_to_verify), received_hmac):
-        #     print("Location update HMAC validation failed. Ignoring.")
-        #     return None
+        if not hmac.compare_digest(_calculate_hmac(data_to_verify), received_hmac):
+            print("Location update HMAC validation failed. Ignoring.")
+            return None
 
         request_data = VehicleLocationUpdateRequest(
             vehicle_id=ros_vehicle_id,
