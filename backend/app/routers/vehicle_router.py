@@ -34,7 +34,7 @@ async def list_vehicles(db: AsyncSession = Depends(get_session)):
     vehicles_from_db = await vehicle_service.get_all_vehicles(db)
     response_vehicles = [map_vehicle_to_response(v) for v in vehicles_from_db]
     return {"vehicles": response_vehicles}
-
+# 이벤트 라우터
 @router.get(
     "/events",
     response_model=vehicle_schema.VehicleEventListResponse,
