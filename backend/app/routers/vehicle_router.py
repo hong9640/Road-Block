@@ -43,7 +43,7 @@ async def list_vehicles(db: AsyncSession = Depends(get_session)):
 async def list_vehicle_events(db: AsyncSession = Depends(get_session)):
     events_data = await vehicle_service.get_all_vehicle_events(db)
     return {"events": events_data}
-
+# 차량 조회
 @router.get(
     "/{vehicle_id}",
     response_model=vehicle_schema.VehicleResponse,

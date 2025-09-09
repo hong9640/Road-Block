@@ -6,7 +6,6 @@ services:
   backend:
     build: .
     container_name: backend-container
-    # CI/CD를 사용하지 않는 수동 배포이므로 image 라인은 주석 처리합니다.
     image: ${CI_REGISTRY_IMAGE}:${CI_COMMIT_SHA}
 
   nginx:
