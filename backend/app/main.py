@@ -15,6 +15,10 @@ from fastapi.responses import JSONResponse
 from dotenv import load_dotenv
 from contextlib import asynccontextmanager
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import JSONResponse
+from app.schemas.error_schema import ErrorMessage, APIException
+from fastapi.middleware.gzip import GZipMiddleware
+from fastapi.staticfiles import StaticFiles
 
 # .env 파일 로드
 load_dotenv()
@@ -40,6 +44,23 @@ async def lifespan(app: FastAPI):
 app = FastAPI(lifespan=lifespan)
 
 # --- 전역 예외 핸들러 --- 
+@app.exception_handler(APIException)
+async def api_exception_handler(request: Request, exc: APIException):
+    """커스텀 APIException을 처리하여 JSON 응답을 반환합니다."""
+    return JSONResponse(
+        status_code=exc.status_code,
+        content=ErrorMessage(message=exc.message).model_dump(),
+    )
+
+@app.exception_handler(Exception)
+async def generic_exception_handler(request: Request, exc: Exception):
+    """예상치 못한 모든 예외를 처리하여 500 응답을 반환합니다."""
+    # 프로덕션 환경에서는 에러 로깅(logging)을 추가해야 합니다.
+    print(f"An unexpected error occurred: {exc}")
+    return JSONResponse(
+        status_code=500,
+        content=ErrorMessage(message="서버 내부 오류").model_dump(),
+    )
 
 # --- 미들웨어 설정 --- 
 
@@ -56,6 +77,9 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+app.add_middleware(GZipMiddleware, minimum_size=1000)
+
+app.mount("/static/maps", StaticFiles(directory="app/maps"), name="maps_static")
 # --- 라우터 등록 --- 
 app.include_router(map_router.router)
 app.include_router(vehicle_router.router)

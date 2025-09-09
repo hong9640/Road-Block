@@ -5,6 +5,7 @@ asyncmy==0.2.10
 bcrypt==4.3.0
 boto3==1.40.1
 botocore==1.40.1
+Brotli==1.1.0
 certifi==2025.8.3
 click==8.2.1
 colorama==0.4.6
