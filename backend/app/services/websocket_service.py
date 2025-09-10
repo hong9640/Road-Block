@@ -64,7 +64,22 @@ async def handle_vehicle_registration(data: bytes) -> Tuple[bytes, Optional[byte
             raise ValueError("Invalid message type")
 
         data_to_verify = data[:16]
-        if not hmac.compare_digest(_calculate_hmac(data_to_verify), received_hmac):
+
+        # --- ⬇️ (추가) HMAC 디버깅 로그 ---
+        print("\n--- HMAC DEBUG START ---")
+        # 1. 서버가 HMAC 계산에 사용한 16바이트 데이터를 16진수로 출력
+        print(f"Data to Verify ({len(data_to_verify)} bytes): {data_to_verify.hex()}")
+        
+        # 2. 서버가 위 데이터로 계산한 HMAC 값을 16진수로 출력
+        calculated_hmac = _calculate_hmac(data_to_verify)
+        print(f"HMAC Calculated by Server: {calculated_hmac.hex()}")
+        
+        # 3. 클라이언트(ROS)가 보낸 HMAC 값을 16진수로 출력
+        print(f"HMAC Received from Client: {received_hmac.hex()}")
+        print("--- HMAC DEBUG END ---\n")
+        # --- ⬆️ (추가) HMAC 디버깅 로그 ---
+
+        if not hmac.compare_digest(calculated_hmac, received_hmac):
             raise ValueError("HMAC validation failed")
 
         request_data = VehicleRegistrationRequest(
@@ -74,22 +89,23 @@ async def handle_vehicle_registration(data: bytes) -> Tuple[bytes, Optional[byte
         )
 
     except (struct.error, ValueError) as e:
+        # ... (이하 코드는 이전과 동일) ...
         print(f"Validation Error: {e}")
         ros_response = _create_ros_error_packet(RosErrorCode.INVALID_FORMAT)
         result = (ros_response, None)
-        # 🌟 DEBUG: 반환 값 추적
         print(f"DEBUG (register): Returning from validation error -> {result}")
         return result
 
+    # ... (DB 저장 및 이벤트 생성 로직은 이전과 동일) ...
     async with AsyncSessionMaker() as db_session:
         try:
             if await is_car_name_exists(db_session, request_data.car_name):
                 ros_response = _create_ros_error_packet(RosErrorCode.DUPLICATE_NAME)
                 result = (ros_response, None)
-                # 🌟 DEBUG: 반환 값 추적
                 print(f"DEBUG (register): Returning from duplicate name error -> {result}")
                 return result
-
+            
+            # (수정 제안) 이 부분은 PoliceCar 생성 로직이 추가되어야 합니다.
             vehicle_type_enum = VehicleTypeEnum.POLICE if request_data.vehicle_type == 0 else VehicleTypeEnum.RUNNER
             db_save_data = {
                 "vehicle_id": request_data.vehicle_id,
@@ -110,13 +126,12 @@ async def handle_vehicle_registration(data: bytes) -> Tuple[bytes, Optional[byte
             ros_response = _create_ros_error_packet(RosErrorCode.INVALID_FORMAT)
             front_event = _create_front_error_packet(FrontErrorCode.DATABASE_ERROR)
             result = (ros_response, front_event)
-            # 🌟 DEBUG: 반환 값 추적
             print(f"DEBUG (register): Returning from DB error -> {result}")
             return result
 
-    ros_response = struct.pack('>BI', MessageType.REGISTER_SUCCESS, event_data.vehicle_id)
+    ros_response = struct.pack('<BI', MessageType.REGISTER_SUCCESS, event_data.vehicle_id)
     car_name_padded = event_data.car_name.encode('utf-8').ljust(10, b'\x00')
-    event_header = struct.pack('>BIIB10s',
+    event_header = struct.pack('<BIIB10s',
                                MessageType.EVENT_VEHICLE_REGISTERED,
                                event_data.id,
                                event_data.vehicle_id,
@@ -126,7 +141,6 @@ async def handle_vehicle_registration(data: bytes) -> Tuple[bytes, Optional[byte
     front_event = event_header + event_hmac
 
     result = (ros_response, front_event)
-    # 🌟 DEBUG: 반환 값 추적
     print(f"DEBUG (register): Returning on success -> {result}")
     return result
 
