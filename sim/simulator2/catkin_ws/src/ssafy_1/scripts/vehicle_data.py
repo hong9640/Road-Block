@@ -1,33 +1,46 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 
+import os
 import struct
+import hmac
+import hashlib
 import websocket
 import rospy
 from morai_msgs.msg import EgoVehicleStatus
+from dotenv import load_dotenv   # 추가
 
-URL = "ws://52.78.193.190:80/ws/vehicles"  # 필요 시 /ws 로 교체
+# -----------------------------
+# 설정
+# -----------------------------
+URL = "ws://52.78.193.190:8080/ws/vehicles"
 VEHICLE_TYPE = 0
-CAR_NAME = "EGO_0"   # 10바이트 (부족하면 NULL padding, 넘치면 잘림)
-MESSAGE_TYPE = 0xA0  # REGISTER_REQUEST
+CAR_NAME = "EGO_0"
+MESSAGE_TYPE = 0xA0
+ENV_PATH = "/home/ubuntu/S13P21A507/sim/simulator2/catkin_ws/.env"  # 절대경로
+
+# -----------------------------
+# HMAC KEY 로드 (.env 절대경로에서)
+# -----------------------------
+load_dotenv(ENV_PATH)  # .env 파일 읽기
+
+SECRET_key_str = os.getenv("HMAC_SECRET_KEY")
+if not SECRET_key_str:
+    raise ValueError(f"HMAC_SECRET_KEY 환경 변수가 설정되지 않았습니다. .env 파일({ENV_PATH})을 확인해주세요.")
+SECRET_KEY = SECRET_key_str.encode("utf-8")
+
+def _calculate_hmac(data: bytes) -> bytes:
+    """주어진 데이터로 HMAC-SHA256 값을 계산 (앞 16바이트)."""
+    return hmac.new(SECRET_KEY, data, hashlib.sha256).digest()[:16]
 
 def build_packet(vehicle_id: int) -> bytes:
-    """
-    [0]     uint8     : message_type (0xA0)
-    [1-4]   uint32 LE : vehicle_id
-    [5]     uint8     : vehicle_type
-    [6-15]  char[10]  : car_name (UTF-8, NULL padding)
-    [16-31] 16 bytes  : hmac (여기서는 전부 NULL)
-    총 32 bytes
-    """
-    # car_name → UTF-8 인코딩 후 10바이트 맞추기
+    """32바이트 등록 패킷 생성"""
     car_bytes = CAR_NAME.encode("utf-8")[:10].ljust(10, b"\x00")
+    head16 = struct.pack("<B I B", MESSAGE_TYPE, vehicle_id, VEHICLE_TYPE) + car_bytes
+    assert len(head16) == 16
 
-    # hmac → 16바이트 NULL
-    hmac_bytes = b"\x00" * 16
-
-    # 패킷 생성 (<B I B 포맷: 1 + 4 + 1 = 6바이트)
-    packet = struct.pack("<B I B", MESSAGE_TYPE, vehicle_id, VEHICLE_TYPE) + car_bytes + hmac_bytes
+    hmac_bytes = _calculate_hmac(head16)
+    packet = head16 + hmac_bytes
     assert len(packet) == 32
     return packet
 
@@ -35,6 +48,7 @@ class SimpleWSRegisterBin32:
     def __init__(self):
         self.ego_topic = "/Ego_topic"
         self.sent_once = False
+
         rospy.Subscriber(self.ego_topic, EgoVehicleStatus, self.on_msg)
         rospy.loginfo(f"[simple_ws_bin32] Ready, will connect only to {URL}")
 
@@ -65,4 +79,3 @@ if __name__ == "__main__":
     rospy.init_node("simple_ws_register_bin32", anonymous=False)
     SimpleWSRegisterBin32()
     rospy.spin()
-
