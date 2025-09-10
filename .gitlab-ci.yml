@@ -1,8 +1,5 @@
 # .gitlab-ci.yml
 
-# 재사용할 변수를 최상단에 정의합니다.
-# $CI_PROJECT_PATH는 '그룹명/프로젝트명' (예: s13-mobility-autodriving-sub1/S13P21A5T)
-# $CI_COMMIT_SHA는 현재 커밋의 해시값입니다.
 variables:
   IMAGE_NAME: lab.ssafy.com/${CI_PROJECT_PATH}
   IMAGE_TAG: ${CI_COMMIT_SHA}
