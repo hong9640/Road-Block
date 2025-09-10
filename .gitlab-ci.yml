@@ -8,8 +8,11 @@ build-job:
   stage: build
   tags:
     - be
+  # EC2 호스트의 Docker를 직접 사용하므로,
+  # 별도의 dind 서비스나 복잡한 변수 설정이 더 이상 필요 없습니다.
   image: docker:20.10.16
   before_script:
+
     - echo $CI_REGISTRY_PASSWORD | docker login -u $CI_REGISTRY_USER --password-stdin $CI_REGISTRY
 
   script:
@@ -26,8 +29,9 @@ deploy-job:
   tags:
     - be
   before_script:
+    # --- ⬇️ (중요) 이 부분이 변경되었습니다 ⬇️ ---
     - echo $CI_REGISTRY_PASSWORD | docker login -u $CI_REGISTRY_USER --password-stdin $CI_REGISTRY
-
+    # --- ⬆️ (중요) 이 부분이 변경되었습니다 ⬆️ ---
   script:
     - echo "Deploying branch $CI_COMMIT_BRANCH to the server..."
     - docker-compose down
