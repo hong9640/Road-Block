@@ -40,13 +40,13 @@ def _calculate_hmac(data: bytes) -> bytes:
 # --- 패킷 생성 헬퍼 함수 ---
 def _create_ros_error_packet(error_code: RosErrorCode) -> bytes:
     """ROS(임베디드)로 보낼 에러(NACK) 패킷을 생성합니다."""
-    header = struct.pack('>BB', MessageType.NACK_ERROR, error_code)
+    header = struct.pack('<BB', MessageType.NACK_ERROR, error_code)
     hmac_val = _calculate_hmac(header)
     return header + hmac_val
 
 def _create_front_error_packet(error_code: FrontErrorCode) -> bytes:
     """프론트엔드로 보낼 시스템 에러 패킷을 생성합니다."""
-    header = struct.pack('>BB', MessageType.SYSTEM_ERROR, error_code)
+    header = struct.pack('<BB', MessageType.SYSTEM_ERROR, error_code)
     hmac_val = _calculate_hmac(header)
     return header + hmac_val
 
@@ -156,7 +156,7 @@ async def handle_location_update(data: bytes) -> Optional[bytes]:
             print(f"DEBUG (location): Returning from invalid packet size -> {result}")
             return result
 
-        ros_vehicle_id, pos_x, pos_y, received_hmac = struct.unpack('>Iff16s', data)
+        ros_vehicle_id, pos_x, pos_y, received_hmac = struct.unpack('<Iff16s', data)
 
         data_to_verify = data[:12]
         if not hmac.compare_digest(_calculate_hmac(data_to_verify), received_hmac):
@@ -198,7 +198,7 @@ async def handle_location_update(data: bytes) -> Optional[bytes]:
             print(f"DEBUG (location): Returning from DB error -> {result}")
             return result
 
-    event_header = struct.pack('>BIff',
+    event_header = struct.pack('<BIff',
                                MessageType.POSITION_BROADCAST_2D,
                                event_data.vehicle_id,
                                event_data.position_x,
@@ -220,7 +220,7 @@ async def handle_vehicle_status_update(data: bytes) -> Tuple[Optional[bytes], Op
         if len(data) != 24:
             raise struct.error("Incorrect packet size for status update")
 
-        msg_type, vehicle_id, fuel, collision, status, received_hmac = struct.unpack('>BIBBB16s', data)
+        msg_type, vehicle_id, fuel, collision, status, received_hmac = struct.unpack('<BIBBB16s', data)
 
         if msg_type != MessageType.STATUS_UPDATE_REQUEST:
              raise ValueError("Invalid message type for status update")
@@ -270,7 +270,7 @@ async def handle_vehicle_status_update(data: bytes) -> Tuple[Optional[bytes], Op
             print(f"DEBUG (status): Returning from DB error -> {result}")
             return result
 
-    event_header = struct.pack('>BIBBB',
+    event_header = struct.pack('<BIBBB',
                                MessageType.STATE_UPDATE,
                                event_data.vehicle_id,
                                event_data.collision_count,
@@ -286,18 +286,18 @@ async def handle_vehicle_status_update(data: bytes) -> Tuple[Optional[bytes], Op
 
 def create_start_tracking_packet(event_data: StartTrackingEvent) -> bytes:
     """'추적 시작' 이벤트 패킷(0xF0)을 생성합니다."""
-    header = struct.pack('>BI', MessageType.EVENT_TRACE_START, event_data.runner_id)
+    header = struct.pack('<BI', MessageType.EVENT_TRACE_START, event_data.runner_id)
     hmac_val = _calculate_hmac(header)
     return header + hmac_val
 
 def create_capture_success_packet(event_data: CaptureSuccessEvent) -> bytes:
     """'검거 성공' 이벤트 패킷(0xFE)을 생성합니다."""
-    header = struct.pack('>BII', MessageType.EVENT_CATCH, event_data.catcher_id, event_data.runner_id)
+    header = struct.pack('<BII', MessageType.EVENT_CATCH, event_data.catcher_id, event_data.runner_id)
     hmac_val = _calculate_hmac(header)
     return header + hmac_val
 
 def create_catch_failed_packet(event_data: CatchFailedEvent) -> bytes:
     """'추적 실패' 이벤트 패킷(0xFD)을 생성합니다."""
-    header = struct.pack('>BII', MessageType.EVENT_CATCH_FAILED, event_data.police_id, event_data.runner_id)
+    header = struct.pack('<BII', MessageType.EVENT_CATCH_FAILED, event_data.police_id, event_data.runner_id)
     hmac_val = _calculate_hmac(header)
     return header + hmac_val
