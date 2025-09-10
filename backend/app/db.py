@@ -79,12 +79,15 @@ async def is_car_name_exists(session: AsyncSession, car_name: str) -> bool:
     result = await session.execute(statement)
     return result.first() is not None
 
-async def save_vehicle(session: AsyncSession, vehicle_data: dict) -> Vehicle:
-    new_vehicle = Vehicle(**vehicle_data)
-    session.add(new_vehicle)
+async def save_vehicle(session: AsyncSession, vehicle_instance: Vehicle) -> Vehicle:
+    """
+    미리 생성된 Vehicle 모델 인스턴스를 받아 DB에 저장합니다.
+    (연관된 PoliceCar 인스턴스가 있다면 함께 저장됩니다.)
+    """
+    session.add(vehicle_instance)
     await session.commit()
-    await session.refresh(new_vehicle)
-    return new_vehicle
+    await session.refresh(vehicle_instance)
+    return vehicle_instance
 
 async def save_vehicle_location(session: AsyncSession, location_data: VehicleLocationUpdateRequest) -> bool:
     """
