@@ -10,15 +10,16 @@ build-job:
     - be
   image: docker:20.10.16
   before_script:
-    - echo $CI_REGISTRY_PASSWORD | docker login -u $CI_REGISTRY_USER --password-stdin $CI_REGISTRY # <-- $CI_REGISTRY 추가
+    - echo $CI_REGISTRY_PASSWORD | docker login -u $CI_REGISTRY_USER --password-stdin lab.ssafy.com
+  # --- ⬇️ (중요) VS Code 린터 오류를 해결하기 위해 스크립트 스타일을 수정했습니다 ⬇️ ---
   script: >
     IMAGE_PATH=$(echo ${CI_PROJECT_PATH} | tr '[:upper:]' '[:lower:]');
-    # --- ⬇️ (수정) 'lab.ssafy.com'을 '$CI_REGISTRY'로 변경 ---
-    FULL_IMAGE_NAME="${CI_REGISTRY}/${IMAGE_PATH}:${CI_COMMIT_SHA}";
+    FULL_IMAGE_NAME="lab.ssafy.com/${IMAGE_PATH}:${CI_COMMIT_SHA}";
     echo "Building Docker image: ${FULL_IMAGE_NAME}";
     docker build -t ${FULL_IMAGE_NAME} .;
     docker push ${FULL_IMAGE_NAME};
     echo "Build and push complete.";
+  # --- ⬆️ (중요) 이 부분이 수정되었습니다 ⬆️ ---
   only:
     - be
     - master
@@ -28,16 +29,16 @@ deploy-job:
   tags:
     - be
   before_script:
-    - echo $CI_REGISTRY_PASSWORD | docker login -u $CI_REGISTRY_USER --password-stdin $CI_REGISTRY # <-- $CI_REGISTRY 추가
+    - echo $CI_REGISTRY_PASSWORD | docker login -u $CI_REGISTRY_USER --password-stdin lab.ssafy.com
+  # --- ⬇️ (중요) VS Code 린터 오류를 해결하기 위해 스크립트 스타일을 수정했습니다 ⬇️ ---
   script: >
     IMAGE_PATH=$(echo ${CI_PROJECT_PATH} | tr '[:upper:]' '[:lower:]');
-    # --- ⬇️ (수정) 'lab.ssafy.com'을 '$CI_REGISTRY'로 변경 ---
-    export IMAGE_TO_DEPLOY="${CI_REGISTRY}/${IMAGE_PATH}:${CI_COMMIT_SHA}";
+    export IMAGE_TO_DEPLOY="lab.ssafy.com/${IMAGE_PATH}:${CI_COMMIT_SHA}";
     echo "Deploying image: ${IMAGE_TO_DEPLOY}";
     docker-compose down;
-    # --pull 옵션이 backend 서비스의 최신 이미지를 받아오도록 합니다.
     docker-compose up --pull -d;
     echo "Deploy complete.";
+  # --- ⬆️ (중요) 이 부분이 수정되었습니다 ⬆️ ---
   only:
     - be
     - master
