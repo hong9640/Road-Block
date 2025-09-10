@@ -80,24 +80,8 @@ async def is_car_name_exists(session: AsyncSession, car_name: str) -> bool:
     return result.first() is not None
 
 async def save_vehicle(session: AsyncSession, vehicle_data: dict) -> Vehicle:
-    """
-    ERD에 맞게 수정된 저장 로직.
-    Vehicle 생성 후, 반환된 id를 PoliceCar의 PK이자 FK인 vehicle_id에 할당합니다.
-    """
-    # 1. 전달받은 딕셔너리로 Vehicle 객체 생성
     new_vehicle = Vehicle(**vehicle_data)
     session.add(new_vehicle)
-    
-    # 2. DB에 임시 반영(flush)하여 new_vehicle.id 값을 할당받음
-    await session.flush()
-
-    # 3. 차량 종류가 POLICE일 경우, PoliceCar 객체 생성
-    if new_vehicle.vehicle_type == VehicleTypeEnum.POLICE:
-        # 🌟 핵심: Vehicle의 PK인 id를 PoliceCar의 PK인 vehicle_id에 명시적으로 전달
-        new_police_car = PoliceCar(vehicle_id=new_vehicle.id)
-        session.add(new_police_car)
-
-    # 4. 모든 변경사항을 DB에 최종 커밋
     await session.commit()
     await session.refresh(new_vehicle)
     return new_vehicle
