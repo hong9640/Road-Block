@@ -26,7 +26,7 @@ from app.db import (
 )
 from app.models.enums import VehicleTypeEnum
 # (추가) DB 모델 임포트
-from app.models import Vehicle, PoliceCar
+from app.models.models import Vehicle, PoliceCar
 
 # --- .env 파일에서 환경 변수 로드 ---
 load_dotenv()
