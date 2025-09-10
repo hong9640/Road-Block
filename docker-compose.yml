@@ -11,7 +11,7 @@ services:
     container_name: backend-container
     # .env 파일에 정의된 환경 변수들을 컨테이너 안으로 가져옵니다.
     env_file:
-      - .env
+      - ./backend/.env
     # Nginx가 백엔드 컨테이너에 접속할 수 있도록 포트를 노출하지만,
     # 외부 PC에 직접 연결하지는 않습니다. (FastAPI가 8000번 포트에서 실행된다고 가정)
     expose:
