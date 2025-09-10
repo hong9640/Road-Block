@@ -1,31 +1,23 @@
-import io
-import zipfile
 from pathlib import Path
-from datetime import datetime
-
-from fastapi import APIRouter
-from fastapi.responses import StreamingResponse
-
-# 프로젝트 구조에 맞게 import 경로를 확인해주세요.
-from app.schemas.error_schema import ErrorMessage, MapNotFoundException
+from fastapi import APIRouter, HTTPException, status
+from fastapi.responses import FileResponse
 
 # --- 상수 및 라우터 설정 ---
 
-# 'app/maps'에 지도 데이터가 있는 것으로 가정합니다.
+# 'app/maps' 디렉토리에 맵 데이터가 있다고 가정합니다.
 MAP_DATA_BASE_PATH = Path("app/maps/")
 
-# DB를 대신하는 메타데이터
+# DB를 대신하는 간단한 맵 정보
+# 각 폴더 안에는 미리 처리된 'merged_road_surfaces.geojson' 파일이 있어야 합니다.
 MAP_METADATA = {
-    1: {"folder_path": "R_KR_PG_K-City", "map_name": "K-City", "created_at": datetime(2025, 9, 1)},
-    2: {"folder_path": "R_KR_PG_KATRI", "map_name": "KATRI", "created_at": datetime(2025, 9, 1)},
-    3: {"folder_path": "R_KR_PG_KIAPI", "map_name": "KIAPI", "created_at": datetime(2025, 9, 1)},
-    4: {"folder_path": "R_KR_PR_Sangam_NoBuildings", "map_name": "상암 (건물 없음)", "created_at": datetime(2025, 9, 1)},
-    5: {"folder_path": "R_KR_PR_SejongBRT0", "map_name": "세종 BRT", "created_at": datetime(2025, 9, 1)},
-    6: {"folder_path": "R_US_PR_LVCC", "map_name": "라스베가스 컨벤션 센터", "created_at": datetime(2025, 9, 1)},
+    1: {"folder_name": "R_KR_PG_K-City", "map_name": "K-City"},
+    2: {"folder_name": "R_KR_PG_KATRI", "map_name": "KATRI"},
+    3: {"folder_name": "R_KR_PG_KIAPI", "map_name": "KIAPI"},
+    4: {"folder_name": "R_KR_PR_Sangam_NoBuildings", "map_name": "상암 (건물 없음)"},
+    5: {"folder_name": "R_KR_PR_SejongBRT0", "map_name": "세종 BRT"},
+    6: {"folder_name": "R_US_PR_LVCC", "map_name": "라스베가스 컨벤션 센터"},
 }
 
-# main.py에서 'app.include_router(map_router.router)'로 등록되었으므로
-# prefix를 여기에 정의합니다.
 router = APIRouter(
     prefix="/maps",
     tags=["지도"],
@@ -35,48 +27,41 @@ router = APIRouter(
 
 @router.get(
     "/{map_id}",
-    summary="지도 데이터 압축 파일 다운로드",
-    description="해당 맵의 모든 JSON 데이터를 하나의 ZIP 파일로 압축하여 반환합니다.",
+    response_class=FileResponse,
+    summary="지도 GeoJSON 파일 조회",
+    description="미리 변환 및 최적화된 도로 데이터를 GeoJSON 파일 형태로 반환합니다.",
     responses={
         200: {
-            "content": {"application/zip": {}},
-            "description": "지도 데이터가 포함된 ZIP 파일.",
+            "content": {"application/json": {}},
+            "description": "도로 데이터가 포함된 GeoJSON 파일.",
         },
         404: {
-            "model": ErrorMessage,
-            "description": "해당 맵을 찾을 수 없습니다.",
+            "status_code": 404,
+            "description": "해당 맵 또는 GeoJSON 파일을 찾을 수 없습니다.",
         },
     },
 )
-async def download_map_zip_by_id(map_id: int):
+async def get_map_geojson_by_id(map_id: int):
     """
-    /maps/{map_id} 경로로 요청 시, 모든 관련 지도 JSON 파일을
-    실시간으로 압축하여 하나의 ZIP 파일로 다운로드합니다.
+    /maps/{map_id} 경로로 GET 요청 시, 해당 ID에 맞는
+    'merged_road_surfaces.geojson' 파일을 직접 반환합니다.
     """
     map_info = MAP_METADATA.get(map_id)
     if not map_info:
-        raise MapNotFoundException()
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"ID '{map_id}'에 해당하는 맵을 찾을 수 없습니다.",
+        )
 
-    map_folder_path = MAP_DATA_BASE_PATH / map_info["folder_path"]
-    if not map_folder_path.is_dir():
-        raise MapNotFoundException()
+    # 반환할 최종 GeoJSON 파일의 전체 경로를 구성합니다.
+    geojson_file_path = MAP_DATA_BASE_PATH / map_info["folder_name"] / "merged_road_surfaces.geojson"
 
-    zip_buffer = io.BytesIO()
+    if not geojson_file_path.is_file():
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"맵의 GeoJSON 파일을 찾을 수 없습니다 (Path: {geojson_file_path}). 데이터 사전 처리 과정이 필요합니다.",
+        )
 
-    with zipfile.ZipFile(zip_buffer, "w", zipfile.ZIP_DEFLATED) as zf:
-        for file_path in map_folder_path.glob("*.json"):
-            zf.write(file_path, arcname=file_path.name)
-    
-    zip_buffer.seek(0)
+    # FileResponse를 사용하여 파일을 효율적으로 반환합니다.
+    return FileResponse(path=geojson_file_path, media_type="application/json")
 
-    zip_filename = f"{map_info['folder_path']}.zip"
-    
-    headers = {
-        'Content-Disposition': f'attachment; filename="{zip_filename}"'
-    }
-
-    return StreamingResponse(
-        zip_buffer,
-        media_type="application/zip",
-        headers=headers
-    )

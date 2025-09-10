@@ -11,7 +11,7 @@ sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..')
 import uvicorn
 from datetime import datetime
 from fastapi import FastAPI, Request, status, WebSocket, WebSocketDisconnect
-from fastapi.responses import JSONResponse
+from fastapi.responses import JSONResponse,FileResponse
 from dotenv import load_dotenv
 from contextlib import asynccontextmanager
 from fastapi.middleware.cors import CORSMiddleware
@@ -79,12 +79,17 @@ app.add_middleware(
 
 app.add_middleware(GZipMiddleware, minimum_size=1000)
 
-app.mount("/static/maps", StaticFiles(directory="app/maps"), name="maps_static")
+# app.mount("/static", StaticFiles(directory="static"), name="static")
 # --- 라우터 등록 --- 
 app.include_router(map_router.router)
 app.include_router(vehicle_router.router)
 app.include_router(websocket_router.router)
 
+# 시험용
+# @app.get("/", include_in_schema=False)
+# async def read_index():
+#     """웹 브라우저에서 접속 시 테스트용 index.html 파일을 반환합니다."""
+#     return FileResponse('static/index.html')
 # 기본 루트 엔드포인트
 @app.get("/")
 def read_root():
