@@ -1,12 +1,5 @@
 # .gitlab-ci.yml
 
-# 재사용할 변수를 정의합니다.
-variables:
-  # $CI_PROJECT_PATH를 소문자로 변환하여 IMAGE_PATH 변수를 생성합니다.
-  # 'tr' 명령어는 대문자를 소문자로 변환하는 표준 리눅스 명령어입니다.
-  IMAGE_PATH: $(echo ${CI_PROJECT_PATH} | tr '[:upper:]' '[:lower:]')
-  IMAGE_TAG: ${CI_COMMIT_SHA}
-
 stages:
   - build
   - deploy
@@ -20,7 +13,8 @@ build-job:
     - echo $CI_REGISTRY_PASSWORD | docker login -u $CI_REGISTRY_USER --password-stdin lab.ssafy.com
   # --- ⬇️ (중요) VS Code 린터 오류를 해결하기 위해 스크립트 스타일을 수정했습니다 ⬇️ ---
   script: >
-    export FULL_IMAGE_NAME="lab.ssafy.com/${IMAGE_PATH}:${IMAGE_TAG}";
+    IMAGE_PATH=$(echo ${CI_PROJECT_PATH} | tr '[:upper:]' '[:lower:]');
+    FULL_IMAGE_NAME="lab.ssafy.com/${IMAGE_PATH}:${CI_COMMIT_SHA}";
     echo "Building Docker image: ${FULL_IMAGE_NAME}";
     docker build -t ${FULL_IMAGE_NAME} .;
     docker push ${FULL_IMAGE_NAME};
@@ -38,7 +32,8 @@ deploy-job:
     - echo $CI_REGISTRY_PASSWORD | docker login -u $CI_REGISTRY_USER --password-stdin lab.ssafy.com
   # --- ⬇️ (중요) VS Code 린터 오류를 해결하기 위해 스크립트 스타일을 수정했습니다 ⬇️ ---
   script: >
-    export IMAGE_TO_DEPLOY="lab.ssafy.com/${IMAGE_PATH}:${IMAGE_TAG}";
+    IMAGE_PATH=$(echo ${CI_PROJECT_PATH} | tr '[:upper:]' '[:lower:]');
+    export IMAGE_TO_DEPLOY="lab.ssafy.com/${IMAGE_PATH}:${CI_COMMIT_SHA}";
     echo "Deploying image: ${IMAGE_TO_DEPLOY}";
     docker-compose down;
     docker-compose up --pull -d;
