@@ -1,55 +1,37 @@
 # .gitlab-ci.yml
 
-# 파이프라인은 두 단계(build, deploy)로 구성됩니다.
 stages:
   - build
   - deploy
 
-# 1. 빌드 단계: Docker 이미지를 만들고 GitLab Registry에 푸시합니다.
 build-job:
   stage: build
-  # 이 작업은 EC2 러너가 실행해야 하므로, 등록 시 설정한 태그를 사용합니다.
   tags:
     - be
-  # Docker 명령어를 사용하기 위한 환경 설정
-  image: docker:20.10.16
-  services:
-    - docker:20.10.16-dind
-  variables:
 
-    DOCKER_HOST: tcp://docker:2375
-    DOCKER_TLS_CERTDIR: ""
-    DOCKER_DRIVER: overlay2
+  image: docker:20.10.16
 
   before_script:
     - docker login -u $CI_REGISTRY_USER -p $CI_REGISTRY_PASSWORD $CI_REGISTRY
   script:
     - echo "Building Docker image for branch $CI_COMMIT_BRANCH..."
-    # Dockerfile을 이용해 이미지를 빌드합니다.
     - docker build -t $CI_REGISTRY_IMAGE:$CI_COMMIT_SHA .
-    # 빌드된 이미지를 GitLab Registry에 푸시합니다.
     - docker push $CI_REGISTRY_IMAGE:$CI_COMMIT_SHA
     - echo "Build and push complete."
-  # 'be' 또는 'master' 브랜치에서만 이 작업을 실행합니다.
   only:
     - be
     - master
 
-# 2. 배포 단계: EC2 서버에서 최신 이미지를 사용하여 컨테이너를 재시작합니다.
 deploy-job:
   stage: deploy
-  # 이 작업 역시 EC2 러너가 실행해야 합니다.
   tags:
     - be
   script:
     - echo "Deploying branch $CI_COMMIT_BRANCH to the server..."
-    # GitLab Registry에 로그인합니다.
     - docker login -u $CI_REGISTRY_USER -p $CI_REGISTRY_PASSWORD $CI_REGISTRY
-    # docker-compose.yml 파일을 이용해 새 버전의 컨테이너를 실행합니다.
     - docker-compose down
     - docker-compose up --pull -d
     - echo "Deploy complete."
-  # 'be' 또는 'master' 브랜치에서만 이 작업을 실행합니다.
   only:
     - be
     - master
