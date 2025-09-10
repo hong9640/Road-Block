@@ -12,7 +12,10 @@ from app.schemas.websocket_schema import (
     VehicleLocationUpdateRequest,
     VehicleLocationBroadcast,
     VehicleStatusUpdateRequest,
-    VehicleStatusBroadcast
+    VehicleStatusBroadcast,
+    StartTrackingEvent,
+    CaptureSuccessEvent,
+    CatchFailedEvent
 )
 from app.db import (
     is_car_name_exists,
@@ -203,7 +206,7 @@ async def handle_vehicle_status_update(data: bytes) -> Tuple[Optional[bytes], Op
         if len(data) != 24:
             raise struct.error("Incorrect packet size for status update")
 
-        msg_type, vehicle_id, collision, status, fuel, received_hmac = struct.unpack('>BIBBB16s', data)
+        msg_type, vehicle_id, collision, status, fuel, received_hmac = struct.unpack('<BIBBB16s', data)
 
         if msg_type != MessageType.STATUS_UPDATE_REQUEST:
              raise ValueError("Invalid message type for status update")
@@ -266,3 +269,21 @@ async def handle_vehicle_status_update(data: bytes) -> Tuple[Optional[bytes], Op
     # 🌟 DEBUG: 반환 값 추적
     print(f"DEBUG (status): Returning on success -> {result}")
     return result
+
+def create_start_tracking_packet(event_data: StartTrackingEvent) -> bytes:
+    """'추적 시작' 이벤트 패킷(0xF0)을 생성합니다."""
+    header = struct.pack('>BI', MessageType.EVENT_TRACE_START, event_data.runner_id)
+    hmac_val = _calculate_hmac(header)
+    return header + hmac_val
+
+def create_capture_success_packet(event_data: CaptureSuccessEvent) -> bytes:
+    """'검거 성공' 이벤트 패킷(0xFE)을 생성합니다."""
+    header = struct.pack('>BII', MessageType.EVENT_CATCH, event_data.catcher_id, event_data.runner_id)
+    hmac_val = _calculate_hmac(header)
+    return header + hmac_val
+
+def create_catch_failed_packet(event_data: CatchFailedEvent) -> bytes:
+    """'추적 실패' 이벤트 패킷(0xFD)을 생성합니다."""
+    header = struct.pack('>BII', MessageType.EVENT_CATCH_FAILED, event_data.police_id, event_data.runner_id)
+    hmac_val = _calculate_hmac(header)
+    return header + hmac_val

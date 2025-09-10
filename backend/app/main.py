@@ -90,6 +90,7 @@ app.include_router(websocket_router.router)
 # async def read_index():
 #     """웹 브라우저에서 접속 시 테스트용 index.html 파일을 반환합니다."""
 #     return FileResponse('static/index.html')
+
 # 기본 루트 엔드포인트
 @app.get("/")
 def read_root():

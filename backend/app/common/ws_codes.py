@@ -12,6 +12,9 @@ class MessageType(IntEnum):
     EVENT_VEHICLE_REGISTERED = 0xA2
     STATE_UPDATE = 0x10
     POSITION_BROADCAST_2D = 0x11
+    EVENT_TRACE_START = 0xF0
+    EVENT_CATCH_FAILED = 0xFD
+    EVENT_CATCH = 0xFE
 
 
 class RosErrorCode(IntEnum):

@@ -45,3 +45,17 @@ class VehicleStatusBroadcast(BaseModel):
     collision_count: int
     status_enum: int
     fuel: int
+
+class StartTrackingEvent(BaseModel):
+    """추적 시작 이벤트 데이터 모델 (0xF0)"""
+    runner_id: int
+
+class CaptureSuccessEvent(BaseModel):
+    """검거 성공 이벤트 데이터 모델 (0xFE)"""
+    catcher_id: int
+    runner_id: int
+
+class CatchFailedEvent(BaseModel):
+    """추적 실패 이벤트 데이터 모델 (0xFD)"""
+    police_id: int
+    runner_id: int
