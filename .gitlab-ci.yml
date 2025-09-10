@@ -10,19 +10,12 @@ build-job:
     - be
   image: docker:20.10.16
   before_script:
-    # --- ⬇️ (중요) 디버깅을 위해 변수들을 출력합니다 ⬇️ ---
-    - echo "--- Start Debugging CI/CD Variables ---"
-    - echo "GitLab Registry URL (\$CI_REGISTRY) = $CI_REGISTRY"
-    - echo "GitLab Registry Image URL (\$CI_REGISTRY_IMAGE) = $CI_REGISTRY_IMAGE"
-    - echo "GitLab Registry User (\$CI_REGISTRY_USER) = $CI_REGISTRY_USER"
-    - echo "Is Password Variable Set? (\$CI_REGISTRY_PASSWORD is set) = $(if [ -n "$CI_REGISTRY_PASSWORD" ]; then echo "Yes"; else echo "No"; fi)"
-    - echo "--- End Debugging CI/CD Variables ---"
-    # --- ⬆️ 디버깅 코드 끝 ⬆️ ---
-    
-    # 이제 로그인을 시도합니다.
-    - echo $CI_REGISTRY_PASSWORD | docker login -u $CI_REGISTRY_USER --password-stdin $CI_REGISTRY
+    # --- ⬇️ (중요) GitLab Registry 주소를 직접 지정하여 로그인 문제를 해결합니다 ⬇️ ---
+    - echo $CI_REGISTRY_PASSWORD | docker login -u $CI_REGISTRY_USER --password-stdin lab.ssafy.com
+    # --- ⬆️ (중요) 이 부분이 최종 수정안입니다 ⬆️ ---
   script:
     - echo "Building Docker image..."
+    # GitLab이 제공하는 전체 이미지 경로 변수($CI_REGISTRY_IMAGE)는 정상 동작하므로 그대로 사용합니다.
     - docker build -t $CI_REGISTRY_IMAGE:$CI_COMMIT_SHA .
     - docker push $CI_REGISTRY_IMAGE:$CI_COMMIT_SHA
     - echo "Build and push complete."
@@ -35,7 +28,9 @@ deploy-job:
   tags:
     - be
   before_script:
-    - echo $CI_REGISTRY_PASSWORD | docker login -u $CI_REGISTRY_USER --password-stdin $CI_REGISTRY
+    # --- ⬇️ (중요) GitLab Registry 주소를 직접 지정하여 로그인 문제를 해결합니다 ⬇️ ---
+    - echo $CI_REGISTRY_PASSWORD | docker login -u $CI_REGISTRY_USER --password-stdin lab.ssafy.com
+    # --- ⬆️ (중요) 이 부분이 최종 수정안입니다 ⬆️ ---
   script:
     - echo "Deploying to the server..."
     - docker-compose down
