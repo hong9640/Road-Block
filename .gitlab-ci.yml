@@ -14,19 +14,18 @@ build-job:
   # Docker 명령어를 사용하기 위한 환경 설정
   image: docker:20.10.16
   services:
-    - name: docker:20.10.16-dind
-      alias: dockerdaemon
+    - docker:20.10.16-dind
   variables:
-    # Docker-in-Docker (dind) 서비스에 연결하도록 설정
-    DOCKER_HOST: tcp://dockerdaemon:2375
+
+    DOCKER_HOST: tcp://docker:2375
     DOCKER_TLS_CERTDIR: ""
-  # 스크립트 실행 전, GitLab Registry에 로그인합니다.
+    DOCKER_DRIVER: overlay2
+
   before_script:
     - docker login -u $CI_REGISTRY_USER -p $CI_REGISTRY_PASSWORD $CI_REGISTRY
   script:
     - echo "Building Docker image for branch $CI_COMMIT_BRANCH..."
     # Dockerfile을 이용해 이미지를 빌드합니다.
-    # $CI_COMMIT_SHA는 커밋 해시로, 이미지에 고유한 태그를 부여합니다.
     - docker build -t $CI_REGISTRY_IMAGE:$CI_COMMIT_SHA .
     # 빌드된 이미지를 GitLab Registry에 푸시합니다.
     - docker push $CI_REGISTRY_IMAGE:$CI_COMMIT_SHA
@@ -47,8 +46,6 @@ deploy-job:
     # GitLab Registry에 로그인합니다.
     - docker login -u $CI_REGISTRY_USER -p $CI_REGISTRY_PASSWORD $CI_REGISTRY
     # docker-compose.yml 파일을 이용해 새 버전의 컨테이너를 실행합니다.
-    # --pull 옵션은 실행 전 항상 최신 이미지를 받아오도록 합니다.
-    # yml 파일의 image: 태그에 있는 변수들이 이때 채워집니다.
     - docker-compose down
     - docker-compose up --pull -d
     - echo "Deploy complete."
