@@ -33,18 +33,18 @@ class VehicleLocationBroadcast(BaseModel):
 class VehicleStatusUpdateRequest(BaseModel):
     """ROS로부터 받은 차량 상태 업데이트 데이터 모델"""
     vehicle_id: int
+    fuel: int
     collision_count: int
     status_enum: int # 0: NORMAL, 1: HALF_DESTROYED, 2: COMPLETE_DESTROYED
-    fuel: int
 
 class VehicleStatusBroadcast(BaseModel):
     """
     상태 정보 DB 저장 후 프론트엔드에 브로드캐스트할 이벤트 데이터 모델
     """
     vehicle_id: int
+    fuel: int
     collision_count: int
     status_enum: int
-    fuel: int
 
 class StartTrackingEvent(BaseModel):
     """추적 시작 이벤트 데이터 모델 (0xF0)"""

@@ -206,7 +206,7 @@ async def handle_vehicle_status_update(data: bytes) -> Tuple[Optional[bytes], Op
         if len(data) != 24:
             raise struct.error("Incorrect packet size for status update")
 
-        msg_type, vehicle_id, collision, status, fuel, received_hmac = struct.unpack('<BIBBB16s', data)
+        msg_type, vehicle_id, fuel, collision, status, received_hmac = struct.unpack('>BIBBB16s', data)
 
         if msg_type != MessageType.STATUS_UPDATE_REQUEST:
              raise ValueError("Invalid message type for status update")
@@ -217,9 +217,9 @@ async def handle_vehicle_status_update(data: bytes) -> Tuple[Optional[bytes], Op
 
         request_data = VehicleStatusUpdateRequest(
             vehicle_id=vehicle_id,
+            fuel=fuel,
             collision_count=collision,
             status_enum=status,
-            fuel=fuel
         )
 
     except (struct.error, ValueError) as e:
