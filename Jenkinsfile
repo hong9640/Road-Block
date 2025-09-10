@@ -4,38 +4,45 @@ pipeline {
     agent any
 
     environment {
-        // GitLab 프로젝트 경로를 소문자로 변환 (예: s10-final/s10p31a507)
         IMAGE_PATH = "${env.GIT_URL.replace('https://lab.ssafy.com/', '').replace('.git', '').toLowerCase()}"
         REGISTRY = "lab.ssafy.com"
-        // Jenkins의 빌드 번호를 태그로 사용하여 이미지를 구분
         IMAGE_NAME = "${REGISTRY}/${IMAGE_PATH}:${env.BUILD_NUMBER}"
+        // (중요) 아래 EC2_HOST 변수에 자신의 EC2 공개 주소를 입력해야 합니다.
+        EC2_HOST = "52.78.193.19" 
     }
 
     stages {
         stage('Build') {
             steps {
                 script {
-                    echo "Checking out from branch: ${env.BRANCH_NAME}"
                     checkout scm
-
-                    echo "Building Docker image: ${IMAGE_NAME}"
-                    // Jenkins에 등록한 GitLab 레지스트리 인증 정보 사용
                     withCredentials([usernamePassword(credentialsId: 'gitlab-registry-credentials', usernameVariable: 'REGISTRY_USER', passwordVariable: 'REGISTRY_PASSWORD')]) {
                         sh "echo ${REGISTRY_PASSWORD} | docker login ${REGISTRY} -u ${REGISTRY_USER} --password-stdin"
                     }
-                    
                     sh "docker build -t ${IMAGE_NAME} ."
                     sh "docker push ${IMAGE_NAME}"
                 }
             }
         }
-        
+
         stage('Deploy') {
             steps {
                 script {
-                    echo "Deploying image: ${IMAGE_NAME}"
-                    // docker-compose가 사용할 이미지 이름을 환경변수로 주입
-                    sh "export IMAGE_TO_DEPLOY=${IMAGE_NAME} && docker-compose down && docker-compose up --pull -d"
+                    echo "Deploying to ${EC2_HOST} via SSH..."
+                    // Jenkins에 등록한 EC2 접속용 SSH 키 인증 정보를 사용합니다.
+                    sshagent(credentials: ['ssafy-ec2-key']) {
+                        // ssh로 EC2에 접속해서 배포 스크립트를 원격으로 실행합니다.
+                        sh """
+                            ssh -o StrictHostKeyChecking=no ubuntu@${EC2_HOST} "
+                                export IMAGE_TO_DEPLOY=${IMAGE_NAME} &&
+                                cd ~/S13P21A507 &&
+                                docker-compose down &&
+                                docker-compose up --pull -d &&
+                                docker image prune -af
+                            "
+                        """
+                    }
+                    echo "Deploy Complete."
                 }
             }
         }
@@ -43,8 +50,7 @@ pipeline {
 
     post {
         always {
-            echo "Cleaning up..."
-            sh 'docker image prune -af'
+            echo "Pipeline finished."
         }
     }
 }
