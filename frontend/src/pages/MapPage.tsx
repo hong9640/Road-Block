@@ -1,6 +1,8 @@
+import MapView from "@/features/map/Components/MapView";
+import VehicleMarker from "@/features/map/Components/VehicleMarker";
 
-export const MapPage: React.FC = () => {
-  return <main className="page p-20 w-100% h-100%">
-    
-  </main>;
-};
+export const MapPage: React.FC = () => (
+  <main className="relative">
+    <VehicleMarker />
+  </main>
+);
