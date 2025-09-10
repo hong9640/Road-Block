@@ -58,7 +58,7 @@ async def handle_vehicle_registration(data: bytes) -> Tuple[bytes, Optional[byte
     try:
         if len(data) != 32:
             raise struct.error("Incorrect packet size")
-        msg_type, vehicle_id, vehicle_type, car_name_bytes, received_hmac = struct.unpack('>BIB10s16s', data)
+        msg_type, vehicle_id, vehicle_type, car_name_bytes, received_hmac = struct.unpack('<BIB10s16s', data)
 
         if msg_type != MessageType.REGISTER_REQUEST:
             raise ValueError("Invalid message type")
