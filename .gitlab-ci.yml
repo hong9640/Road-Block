@@ -1,45 +1,57 @@
 # .gitlab-ci.yml
-
 stages:
   - build
   - deploy
 
-build-job:
+variables:
+  DOCKER_TLS_CERTDIR: ""          # docker:dind 사용 시 권장
+  DOCKER_DRIVER: overlay2
+
+# ⚠️ 레지스트리/이미지 태그
+# GitLab 자동 변수 사용(권장): $CI_REGISTRY / $CI_REGISTRY_IMAGE
+# 최종 배포 이미지: $CI_REGISTRY_IMAGE:$CI_COMMIT_SHA
+# 사람이 읽기 쉬운 latest도 추가로 태깅
+build-image:
   stage: build
-  tags:
-    - be
-  image: docker:20.10.16
+  image: docker:27
+  services:
+    - name: docker:27-dind
+      command: ["--mtu=1460"]
+  tags: ["be"]            # 러너 태그 유지
   before_script:
-    - echo $CI_REGISTRY_PASSWORD | docker login -u $CI_REGISTRY_USER --password-stdin lab.ssafy.com
-  # --- ⬇️ (중요) VS Code 린터 오류를 해결하기 위해 스크립트 스타일을 수정했습니다 ⬇️ ---
-  script: >
-    IMAGE_PATH=$(echo ${CI_PROJECT_PATH} | tr '[:upper:]' '[:lower:]');
-    FULL_IMAGE_NAME="lab.ssafy.com/${IMAGE_PATH}:${CI_COMMIT_SHA}";
-    echo "Building Docker image: ${FULL_IMAGE_NAME}";
-    docker build -t ${FULL_IMAGE_NAME} .;
-    docker push ${FULL_IMAGE_NAME};
-    echo "Build and push complete.";
-  # --- ⬆️ (중요) 이 부분이 수정되었습니다 ⬆️ ---
+    - echo "$CI_REGISTRY_PASSWORD" | docker login "$CI_REGISTRY" -u "$CI_REGISTRY_USER" --password-stdin
+  script:
+    - docker build -t "$CI_REGISTRY_IMAGE:$CI_COMMIT_SHA" -f Dockerfile .
+    - docker tag "$CI_REGISTRY_IMAGE:$CI_COMMIT_SHA" "$CI_REGISTRY_IMAGE:latest"
+    - docker push "$CI_REGISTRY_IMAGE:$CI_COMMIT_SHA"
+    - docker push "$CI_REGISTRY_IMAGE:latest"
   only:
-    - be
-    - master
+    - branches
+    - tags
+  except:
+    - schedules
 
-deploy-job:
+deploy:
   stage: deploy
-  tags:
-    - be
+  image: alpine:3.20
+  tags: ["be"]
   before_script:
-    - echo $CI_REGISTRY_PASSWORD | docker login -u $CI_REGISTRY_USER --password-stdin lab.ssafy.com
-  # --- ⬇️ (중요) VS Code 린터 오류를 해결하기 위해 스크립트 스타일을 수정했습니다 ⬇️ ---
-  script: >
-    IMAGE_PATH=$(echo ${CI_PROJECT_PATH} | tr '[:upper:]' '[:lower:]');
-    export IMAGE_TO_DEPLOY="lab.ssafy.com/${IMAGE_PATH}:${CI_COMMIT_SHA}";
-    echo "Deploying image: ${IMAGE_TO_DEPLOY}";
-    docker-compose down;
-    docker-compose up --pull -d;
-    echo "Deploy complete.";
-  # --- ⬆️ (중요) 이 부분이 수정되었습니다 ⬆️ ---
+    - apk add --no-cache openssh-client docker-cli
+    # SSH 비밀키/known_hosts 설정 (변수는 GitLab CI Settings에 등록)
+    - mkdir -p ~/.ssh
+    - echo "$SSH_PRIVATE_KEY" | tr -d '\r' | ssh-add - >/dev/null 2>&1 || eval "$(ssh-agent -s)" && echo "$SSH_PRIVATE_KEY" | tr -d '\r' | ssh-add -
+    - chmod 700 ~/.ssh
+    - ssh-keyscan -H "$DEPLOY_HOST" >> ~/.ssh/known_hosts
+  script:
+    # 원격 서버에서 docker compose로 최신 이미지 풀 & 재시작
+    - >
+      ssh "$DEPLOY_USER@$DEPLOY_HOST"
+      "export IMAGE_TO_DEPLOY=$CI_REGISTRY_IMAGE:$CI_COMMIT_SHA &&
+       docker login $CI_REGISTRY -u $CI_REGISTRY_USER -p $CI_REGISTRY_PASSWORD &&
+       cd $DEPLOY_DIR &&
+       docker compose pull &&
+       docker compose up -d --remove-orphans"
+  when: on_success
   only:
-    - be
+    - main
     - master
-
