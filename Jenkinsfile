@@ -8,7 +8,7 @@ pipeline {
         REGISTRY = "lab.ssafy.com"
         IMAGE_NAME = "${REGISTRY}/${IMAGE_PATH}:${env.BUILD_NUMBER}"
         // (중요) 아래 EC2_HOST 변수에 자신의 EC2 공개 주소를 입력해야 합니다.
-        EC2_HOST = "52.78.193.19" 
+        EC2_HOST = "52.78.193.190" 
     }
 
     stages {
