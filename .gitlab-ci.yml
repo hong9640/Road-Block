@@ -8,15 +8,21 @@ build-job:
   stage: build
   tags:
     - be
-  # EC2 호스트의 Docker를 직접 사용하므로,
-  # 별도의 dind 서비스나 복잡한 변수 설정이 더 이상 필요 없습니다.
   image: docker:20.10.16
   before_script:
-
+    # --- ⬇️ (중요) 디버깅을 위해 변수들을 출력합니다 ⬇️ ---
+    - echo "--- Start Debugging CI/CD Variables ---"
+    - echo "GitLab Registry URL (\$CI_REGISTRY) = $CI_REGISTRY"
+    - echo "GitLab Registry Image URL (\$CI_REGISTRY_IMAGE) = $CI_REGISTRY_IMAGE"
+    - echo "GitLab Registry User (\$CI_REGISTRY_USER) = $CI_REGISTRY_USER"
+    - echo "Is Password Variable Set? (\$CI_REGISTRY_PASSWORD is set) = $(if [ -n "$CI_REGISTRY_PASSWORD" ]; then echo "Yes"; else echo "No"; fi)"
+    - echo "--- End Debugging CI/CD Variables ---"
+    # --- ⬆️ 디버깅 코드 끝 ⬆️ ---
+    
+    # 이제 로그인을 시도합니다.
     - echo $CI_REGISTRY_PASSWORD | docker login -u $CI_REGISTRY_USER --password-stdin $CI_REGISTRY
-
   script:
-    - echo "Building Docker image for branch $CI_COMMIT_BRANCH..."
+    - echo "Building Docker image..."
     - docker build -t $CI_REGISTRY_IMAGE:$CI_COMMIT_SHA .
     - docker push $CI_REGISTRY_IMAGE:$CI_COMMIT_SHA
     - echo "Build and push complete."
@@ -29,17 +35,13 @@ deploy-job:
   tags:
     - be
   before_script:
-    # --- ⬇️ (중요) 이 부분이 변경되었습니다 ⬇️ ---
     - echo $CI_REGISTRY_PASSWORD | docker login -u $CI_REGISTRY_USER --password-stdin $CI_REGISTRY
-    # --- ⬆️ (중요) 이 부분이 변경되었습니다 ⬆️ ---
   script:
-    - echo "Deploying branch $CI_COMMIT_BRANCH to the server..."
+    - echo "Deploying to the server..."
     - docker-compose down
     - docker-compose up --pull -d
     - echo "Deploy complete."
   only:
     - be
     - master
-
-    
 
