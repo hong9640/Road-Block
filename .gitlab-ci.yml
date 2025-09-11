@@ -1,27 +1,39 @@
 stages: [push]
 
 variables:
-  # Docker-in-Docker 설정 (필요한 환경에서 안정화)
   DOCKER_TLS_CERTDIR: ""
   DOCKER_HOST: tcp://docker:2375
-# 주석 추가
  
   PROJECT_SLUG: "a507_car"
-  IMAGE_REPO:   "${DOCKER_HUB_USERNAME}/${PROJECT_SLUG}"
+  IMAGE_REPO:   "${DOCKER_HUB_USERNAME}/${PROJECT_SLUG}" # 경로는 정확합니다
   IMAGE_SHA:    "${IMAGE_REPO}:${CI_COMMIT_SHA}"
   IMAGE_LATEST: "${IMAGE_REPO}:latest"
-  DOCKER_BUILDKIT: "1"
 
 push-image:
   stage: push
-  image: docker:27
-  services: [docker:27-dind]
+  image: docker:latest # 최신 버전의 Docker 이미지를 사용하는 것이 좋습니다
+  services: [docker:dind]
   script:
+    # --- 디버깅 코드 추가 ---
+    - echo "### 파일 목록 확인 (디버깅) ###"
+    - ls -R  # 현재 프로젝트의 모든 파일과 폴더 구조를 출력
+    - echo "##############################"
+
     - echo "IMAGE_REPO=$IMAGE_REPO"
     - echo "$DOCKER_HUB_TOKEN" | docker login -u "$DOCKER_HUB_USERNAME" --password-stdin docker.io
-    - docker build -t "$IMAGE_SHA" -f Dockerfile .
+
+    # --- docker build 명령어 수정 ---
+    # -f 로 Dockerfile 위치를 지정하고, 빌드 컨텍스트를 ./backend로 한정합니다
+    - docker build -t "$IMAGE_SHA" -f backend/Dockerfile ./backend
+
+    # --- 디버깅 코드 추가 ---
+    - echo "### 빌드된 로컬 이미지 확인 (디버깅) ###"
+    - docker images
+    - echo "###################################"
+
     - docker push "$IMAGE_SHA"
     - docker tag "$IMAGE_SHA" "$IMAGE_LATEST"
     - docker push "$IMAGE_LATEST"
+    - echo "### Docker Hub 푸시 성공! ###"
   rules:
     - if: '$CI_PIPELINE_SOURCE == "push"'
