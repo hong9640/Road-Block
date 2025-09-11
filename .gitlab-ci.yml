@@ -1,41 +1,22 @@
 stages:
-  - build
-  - deploy
+  - push
 
-build-job:
-  stage: build
-  tags:
-    - be
-  image: docker:20.10.16
-  before_script:
-    # Docker Hub 로그인 정보 사용
-    - echo $DOCKER_HUB_TOKEN | docker login -u $DOCKER_HUB_USERNAME --password-stdin
-  script: >
-    # 이미지 경로를 Docker Hub에 맞게 변경
-    IMAGE_PATH=$(echo ${CI_PROJECT_PATH} | tr '[:upper:]' '[:lower:]');
-    FULL_IMAGE_NAME="${DOCKER_HUB_USERNAME}/${IMAGE_PATH}:${CI_COMMIT_SHA}";
-    echo "Building Docker image: ${FULL_IMAGE_NAME}";
-    docker build -t ${FULL_IMAGE_NAME} .;
-    docker push ${FULL_IMAGE_NAME};
-    echo "Build and push complete.";
-  only:
-    - be
-    - master
+variables:
+  IMAGE_PATH: "$(echo ${CI_PROJECT_PATH} | tr '[:upper:]' '[:lower:]')"
+  IMAGE_NAME: "${DOCKER_HUB_USERNAME}/${IMAGE_PATH}"
+  IMAGE_SHA:  "${IMAGE_NAME}:${CI_COMMIT_SHA}"
+  IMAGE_LATEST: "${IMAGE_NAME}:latest"
 
-deploy-job:
-  stage: deploy
-  tags:
-    - be
-  before_script:
-    - echo $DOCKER_HUB_TOKEN | docker login -u $DOCKER_HUB_USERNAME --password-stdin docker.io
-  script: >
-    # 이미지 경로를 Docker Hub에 맞게 변경
-    IMAGE_PATH=$(echo ${CI_PROJECT_PATH} | tr '[:upper:]' '[:lower:]');
-    export IMAGE_TO_DEPLOY="${DOCKER_HUB_USERNAME}/${IMAGE_PATH}:${CI_COMMIT_SHA}";
-    echo "Deploying image: ${IMAGE_TO_DEPLOY}";
-    docker-compose down;
-    docker-compose up --pull -d;
-    echo "Deploy complete.";
-  only:
-    - be
-    - master
+push-image:
+  stage: push
+  image: docker:27
+  services:
+    - docker:27-dind
+  script:
+    - echo "$DOCKER_HUB_TOKEN" | docker login -u "$DOCKER_HUB_USERNAME" --password-stdin docker.io
+    - docker build -t "$IMAGE_SHA" -f Dockerfile .
+    - docker push "$IMAGE_SHA"
+    - docker tag "$IMAGE_SHA" "$IMAGE_LATEST"
+    - docker push "$IMAGE_LATEST"
+  rules:
+    - if: '$CI_COMMIT_BRANCH == "main"'
