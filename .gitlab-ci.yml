@@ -7,7 +7,7 @@ variables:
 
   # 프로젝트명만 기반으로 slug 생성 (예: S13P21A507 -> s13p21a507)
   PROJECT_SLUG: "$(echo ${CI_PROJECT_NAME} | tr '[:upper:]' '[:lower:]' | tr -cs 'a-z0-9' '-')"
-  IMAGE_REPO:   "${DOCKER_HUB_USERNAME}/${PROJECT_SLUG}-backend"
+  IMAGE_REPO:   "${DOCKER_HUB_USERNAME}/${PROJECT_SLUG}"
   IMAGE_SHA:    "${IMAGE_REPO}:${CI_COMMIT_SHA}"
   IMAGE_LATEST: "${IMAGE_REPO}:latest"
   DOCKER_BUILDKIT: "1"
