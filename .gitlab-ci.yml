@@ -1,48 +1,26 @@
-stages:
-  - push
-  - deploy
+# .gitlab-ci.yml (수동 배포용: build/push만 자동)
+stages: [push]
 
+# Docker Hub는 2단계 path를 허용하지 않음: <user>/<single-repo>
+# => 안전하게 slug로 평탄화해서 '-backend' 접미사 사용
 variables:
-  IMAGE_PATH: "$(echo ${CI_PROJECT_PATH} | tr '[:upper:]' '[:lower:]')"
-  IMAGE_NAME: "${DOCKER_HUB_USERNAME}/${IMAGE_PATH}"
-  IMAGE_SHA:  "${IMAGE_NAME}:${CI_COMMIT_SHA}"
-  IMAGE_LATEST: "${IMAGE_NAME}:latest"
+  IMAGE_REPO: "${DOCKER_HUB_USERNAME}/${CI_PROJECT_PATH_SLUG}-backend"
+  IMAGE_SHA:  "${IMAGE_REPO}:${CI_COMMIT_SHA}"
+  IMAGE_LATEST: "${IMAGE_REPO}:latest"
+  DOCKER_BUILDKIT: "1"
 
 push-image:
   stage: push
   image: docker:27
   services:
     - docker:27-dind
-  tags:
-    - be
+  # tags:  # <-- 러너 태그 요구 제거(공유 러너 사용)
   script:
     - echo "$DOCKER_HUB_TOKEN" | docker login -u "$DOCKER_HUB_USERNAME" --password-stdin docker.io
     - docker build -t "$IMAGE_SHA" -f Dockerfile .
     - docker push "$IMAGE_SHA"
-    # 운영 편의를 위해 latest도 함께 푸시
     - docker tag "$IMAGE_SHA" "$IMAGE_LATEST"
     - docker push "$IMAGE_LATEST"
+  # 브랜치 제한 제거 → 어떤 브랜치 push든 파이프라인 생성
   rules:
-    - if: '$CI_COMMIT_BRANCH == "main"'
-
-deploy:
-  stage: deploy
-  image: alpine:3.20
-  needs: ["push-image"]
-  tags:
-    - be
-  before_script:
-    - apk add --no-cache openssh-client docker-cli docker-cli-compose
-    - echo "$SSH_PRIVATE_KEY" > id_rsa
-    - chmod 600 id_rsa
-  script: |
-    ssh -i id_rsa -o StrictHostKeyChecking=no ${EC2_USER}@${EC2_HOST} '
-      echo "'$DOCKER_HUB_TOKEN'" | docker login -u "'$DOCKER_HUB_USERNAME'" --password-stdin docker.io &&
-      export IMAGE_TO_DEPLOY="'"$IMAGE_LATEST"'" &&
-      cd "'"$DEPLOY_DIR"'" &&
-      docker compose pull &&
-      docker compose up -d &&
-      docker image prune -f
-    '
-  rules:
-    - if: '$CI_COMMIT_BRANCH == "main"'
+    - if: '$CI_PIPELINE_SOURCE == "push"'
