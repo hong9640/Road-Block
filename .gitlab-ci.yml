@@ -27,8 +27,7 @@ deploy-job:
   tags:
     - be
   before_script:
-    # Docker Hub 로그인 정보 사용
-    - echo $DOCKER_HUB_TOKEN | docker login -u $DOCKER_HUB_USERNAME --password-stdin
+    - echo $DOCKER_HUB_TOKEN | docker login -u $DOCKER_HUB_USERNAME --password-stdin docker.io
   script: >
     # 이미지 경로를 Docker Hub에 맞게 변경
     IMAGE_PATH=$(echo ${CI_PROJECT_PATH} | tr '[:upper:]' '[:lower:]');
