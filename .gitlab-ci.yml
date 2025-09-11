@@ -1,14 +1,17 @@
-stages: [push]
+stages:
+  - push
 
 variables:
-  IMAGE_REPO: "${DOCKER_HUB_USERNAME}/s13p21a507-backend"
-  IMAGE_SHA:  "${IMAGE_REPO}:${CI_COMMIT_SHA}"
-  IMAGE_LATEST: "${IMAGE_REPO}:latest"
+  IMAGE_PATH: "$(echo ${CI_PROJECT_PATH} | tr '[:upper:]' '[:lower:]')"
+  IMAGE_NAME: "${DOCKER_HUB_USERNAME}/${IMAGE_PATH}"
+  IMAGE_SHA:  "${IMAGE_NAME}:${CI_COMMIT_SHA}"
+  IMAGE_LATEST: "${IMAGE_NAME}:latest"
 
 push-image:
   stage: push
   image: docker:27
-  services: [docker:27-dind]
+  services:
+    - docker:27-dind
   script:
     - echo "$DOCKER_HUB_TOKEN" | docker login -u "$DOCKER_HUB_USERNAME" --password-stdin docker.io
     - docker build -t "$IMAGE_SHA" -f Dockerfile .
