@@ -1,5 +1,3 @@
-# .gitlab-ci.yml
-
 stages:
   - build
   - deploy
@@ -10,10 +8,12 @@ build-job:
     - be
   image: docker:20.10.16
   before_script:
-    - echo $CI_REGISTRY_PASSWORD | docker login -u $CI_REGISTRY_USER --password-stdin $CI_REGISTRY
+    # Docker Hub 로그인 정보 사용
+    - echo $DOCKER_HUB_TOKEN | docker login -u $DOCKER_HUB_USERNAME --password-stdin
   script: >
+    # 이미지 경로를 Docker Hub에 맞게 변경
     IMAGE_PATH=$(echo ${CI_PROJECT_PATH} | tr '[:upper:]' '[:lower:]');
-    FULL_IMAGE_NAME="${CI_REGISTRY}/${IMAGE_PATH}:${CI_COMMIT_SHA}";
+    FULL_IMAGE_NAME="${DOCKER_HUB_USERNAME}/${IMAGE_PATH}:${CI_COMMIT_SHA}";
     echo "Building Docker image: ${FULL_IMAGE_NAME}";
     docker build -t ${FULL_IMAGE_NAME} .;
     docker push ${FULL_IMAGE_NAME};
@@ -27,12 +27,12 @@ deploy-job:
   tags:
     - be
   before_script:
-    # 로그인 시에도 정확한 레지스트리 주소($CI_REGISTRY)를 명시합니다.
-    - echo $CI_REGISTRY_PASSWORD | docker login -u $CI_REGISTRY_USER --password-stdin $CI_REGISTRY
+    # Docker Hub 로그인 정보 사용
+    - echo $DOCKER_HUB_TOKEN | docker login -u $DOCKER_HUB_USERNAME --password-stdin
   script: >
+    # 이미지 경로를 Docker Hub에 맞게 변경
     IMAGE_PATH=$(echo ${CI_PROJECT_PATH} | tr '[:upper:]' '[:lower:]');
-    # --- ⬇️ (수정) 'lab.ssafy.com'을 '$CI_REGISTRY' 변수로 변경 ---
-    export IMAGE_TO_DEPLOY="${CI_REGISTRY}/${IMAGE_PATH}:${CI_COMMIT_SHA}";
+    export IMAGE_TO_DEPLOY="${DOCKER_HUB_USERNAME}/${IMAGE_PATH}:${CI_COMMIT_SHA}";
     echo "Deploying image: ${IMAGE_TO_DEPLOY}";
     docker-compose down;
     docker-compose up --pull -d;
