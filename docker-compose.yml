@@ -2,6 +2,7 @@ version: '3.8'
 
 services:
   backend:
+  # env 못 읽고 있음
     image: ${IMAGE_TO_DEPLOY}          # ← 원격 이미지만 사용
     container_name: backend-container
     restart: always
