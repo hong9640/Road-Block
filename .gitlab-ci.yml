@@ -1,26 +1,27 @@
-# .gitlab-ci.yml (수동 배포용: build/push만 자동)
 stages: [push]
 
-# Docker Hub는 2단계 path를 허용하지 않음: <user>/<single-repo>
-# => 안전하게 slug로 평탄화해서 '-backend' 접미사 사용
 variables:
-  IMAGE_REPO: "${DOCKER_HUB_USERNAME}/${CI_PROJECT_PATH_SLUG}-backend"
-  IMAGE_SHA:  "${IMAGE_REPO}:${CI_COMMIT_SHA}"
+  # Docker-in-Docker 설정 (필요한 환경에서 안정화)
+  DOCKER_TLS_CERTDIR: ""
+  DOCKER_HOST: tcp://docker:2375
+
+  # 프로젝트명만 기반으로 slug 생성 (예: S13P21A507 -> s13p21a507)
+  PROJECT_SLUG: "$(echo ${CI_PROJECT_NAME} | tr '[:upper:]' '[:lower:]' | tr -cs 'a-z0-9' '-')"
+  IMAGE_REPO:   "${DOCKER_HUB_USERNAME}/${PROJECT_SLUG}-backend"
+  IMAGE_SHA:    "${IMAGE_REPO}:${CI_COMMIT_SHA}"
   IMAGE_LATEST: "${IMAGE_REPO}:latest"
   DOCKER_BUILDKIT: "1"
 
 push-image:
   stage: push
   image: docker:27
-  services:
-    - docker:27-dind
-  # tags:  # <-- 러너 태그 요구 제거(공유 러너 사용)
+  services: [docker:27-dind]
   script:
+    - echo "IMAGE_REPO=$IMAGE_REPO"
     - echo "$DOCKER_HUB_TOKEN" | docker login -u "$DOCKER_HUB_USERNAME" --password-stdin docker.io
     - docker build -t "$IMAGE_SHA" -f Dockerfile .
     - docker push "$IMAGE_SHA"
     - docker tag "$IMAGE_SHA" "$IMAGE_LATEST"
     - docker push "$IMAGE_LATEST"
-  # 브랜치 제한 제거 → 어떤 브랜치 push든 파이프라인 생성
   rules:
     - if: '$CI_PIPELINE_SOURCE == "push"'
