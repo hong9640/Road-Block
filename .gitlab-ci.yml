@@ -1,12 +1,10 @@
 stages: [push]
 
 variables:
-  # DinD 설정
   DOCKER_TLS_CERTDIR: ""
   DOCKER_HOST: tcp://docker:2375
   DOCKER_BUILDKIT: "1"
 
-  # 프로젝트명만 사용해 짧은 레포명 고정 (예: S13P21A507 -> s13p21a507-backend)
   PROJECT_SLUG: "$(echo ${CI_PROJECT_NAME} | tr '[:upper:]' '[:lower:]' | tr -cs 'a-z0-9' '-')"
   IMAGE_REPO:   "${DOCKER_HUB_USERNAME}/${PROJECT_SLUG}-backend"
   IMAGE_SHA:    "${IMAGE_REPO}:${CI_COMMIT_SHA}"
@@ -16,7 +14,6 @@ push-image:
   stage: push
   image: docker:27
   services: [docker:27-dind]
-  # tags: [be]   # ← (삭제) 태그 요구 없애서 공유 러너로 바로 실행
   script:
     - echo "IMAGE_REPO=$IMAGE_REPO"
     - echo "$DOCKER_HUB_TOKEN" | docker login -u "$DOCKER_HUB_USERNAME" --password-stdin docker.io
@@ -25,4 +22,4 @@ push-image:
     - docker tag "$IMAGE_SHA" "$IMAGE_LATEST"
     - docker push "$IMAGE_LATEST"
   rules:
-    - if: '$CI_PIPELINE_SOURCE == "push"'   # 아무 브랜치 푸시나 수행(원하면 main|be 제한으로 바꿔도 됨)
+    - if: '$CI_PIPELINE_SOURCE == "push"'
