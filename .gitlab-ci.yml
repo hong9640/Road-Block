@@ -1,5 +1,6 @@
 stages:
   - push
+  - deploy
 
 variables:
   IMAGE_PATH: "$(echo ${CI_PROJECT_PATH} | tr '[:upper:]' '[:lower:]')"
@@ -12,11 +13,36 @@ push-image:
   image: docker:27
   services:
     - docker:27-dind
+  tags:
+    - be
   script:
     - echo "$DOCKER_HUB_TOKEN" | docker login -u "$DOCKER_HUB_USERNAME" --password-stdin docker.io
     - docker build -t "$IMAGE_SHA" -f Dockerfile .
     - docker push "$IMAGE_SHA"
+    # 운영 편의를 위해 latest도 함께 푸시
     - docker tag "$IMAGE_SHA" "$IMAGE_LATEST"
     - docker push "$IMAGE_LATEST"
+  rules:
+    - if: '$CI_COMMIT_BRANCH == "main"'
+
+deploy:
+  stage: deploy
+  image: alpine:3.20
+  needs: ["push-image"]
+  tags:
+    - be
+  before_script:
+    - apk add --no-cache openssh-client docker-cli docker-cli-compose
+    - echo "$SSH_PRIVATE_KEY" > id_rsa
+    - chmod 600 id_rsa
+  script: |
+    ssh -i id_rsa -o StrictHostKeyChecking=no ${EC2_USER}@${EC2_HOST} '
+      echo "'$DOCKER_HUB_TOKEN'" | docker login -u "'$DOCKER_HUB_USERNAME'" --password-stdin docker.io &&
+      export IMAGE_TO_DEPLOY="'"$IMAGE_LATEST"'" &&
+      cd "'"$DEPLOY_DIR"'" &&
+      docker compose pull &&
+      docker compose up -d &&
+      docker image prune -f
+    '
   rules:
     - if: '$CI_COMMIT_BRANCH == "main"'
