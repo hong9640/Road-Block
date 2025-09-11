@@ -4,7 +4,7 @@ variables:
   # Docker-in-Docker 설정 (필요한 환경에서 안정화)
   DOCKER_TLS_CERTDIR: ""
   DOCKER_HOST: tcp://docker:2375
-
+# 주석 추가
  
   PROJECT_SLUG: "a507_car"
   IMAGE_REPO:   "${DOCKER_HUB_USERNAME}/${PROJECT_SLUG}"
