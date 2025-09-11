@@ -10,7 +10,6 @@ build-job:
     - be
   image: docker:20.10.16
   before_script:
-    # 로그인 시에도 정확한 레지스트리 주소($CI_REGISTRY)를 명시합니다.
     - echo $CI_REGISTRY_PASSWORD | docker login -u $CI_REGISTRY_USER --password-stdin $CI_REGISTRY
   script: >
     IMAGE_PATH=$(echo ${CI_PROJECT_PATH} | tr '[:upper:]' '[:lower:]');
