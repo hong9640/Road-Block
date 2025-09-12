@@ -153,17 +153,20 @@ async def handle_vehicle_registration(data: bytes) -> Tuple[bytes, Optional[byte
     return result
 
 async def handle_location_update(data: bytes) -> Optional[bytes]:
+    """차량 위치 정보 업데이트를 처리합니다. (명세서 기준 수정)"""
     try:
+        # 명세서에 따라 패킷 길이는 28 bytes
         if len(data) != 28:
-            print(f"Invalid location packet size: {len(data)} bytes. Ignoring.")
+            print(f"위치 정보 패킷 사이즈 오류: {len(data)} bytes. 무시.")
             return None
 
-        # (수정) 리틀 엔디안으로 변경
+        # message_type 없이 vehicle_id 부터 바로 언패킹
         ros_vehicle_id, pos_x, pos_y, received_hmac = struct.unpack('<Iff16s', data)
 
+        # HMAC 검증 대상은 앞 12 bytes
         data_to_verify = data[:12]
         if not hmac.compare_digest(_calculate_hmac(data_to_verify), received_hmac):
-            print("Location update HMAC validation failed. Ignoring.")
+            print("위치 정보 HMAC 검증 실패. 무시.")
             return None
 
         request_data = VehicleLocationUpdateRequest(
@@ -172,14 +175,14 @@ async def handle_location_update(data: bytes) -> Optional[bytes]:
             position_y=pos_y
         )
     except (struct.error, ValueError) as e:
-        print(f"Location update validation Error: {e}. Ignoring.")
+        print(f"위치 정보 유효성 검증 에러: {e}. 무시.")
         return None
 
     async with AsyncSessionMaker() as db_session:
         try:
+            # (이하 DB 저장 및 이벤트 생성 로직은 기존과 동일)
             success = await save_vehicle_location(db_session, location_data=request_data)
             if not success:
-                print(f"DEBUG (location): Vehicle not found in DB for ID {request_data.vehicle_id}")
                 return None
 
             event_data = VehicleLocationBroadcast(
@@ -188,12 +191,12 @@ async def handle_location_update(data: bytes) -> Optional[bytes]:
                 position_y=request_data.position_y
             )
         except Exception as e:
-            print(f"Database Error on location save: {e}")
+            print(f"DB 에러 (위치 저장): {e}")
             return _create_front_error_packet(FrontErrorCode.DATABASE_ERROR)
 
-    # (수정) 리틀 엔디안으로 변경
+    # 프론트엔드로 브로드캐스트할 이벤트 패킷 생성 (message_type: 0xB1)
     event_header = struct.pack('<BIff',
-                               MessageType.POSITION_BROADCAST_2D,
+                               MessageType.POSITION_BROADCAST_2D, # 0xB1
                                event_data.vehicle_id,
                                event_data.position_x,
                                event_data.position_y)
