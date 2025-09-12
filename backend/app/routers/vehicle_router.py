@@ -34,15 +34,7 @@ async def list_vehicles(db: AsyncSession = Depends(get_session)):
     vehicles_from_db = await vehicle_service.get_all_vehicles(db)
     response_vehicles = [map_vehicle_to_response(v) for v in vehicles_from_db]
     return {"vehicles": response_vehicles}
-# 이벤트 라우터
-@router.get(
-    "/events",
-    response_model=vehicle_schema.VehicleEventListResponse,
-    summary="차량 사건 로그 조회 (Get Vehicle Event Logs)"
-)
-async def list_vehicle_events(db: AsyncSession = Depends(get_session)):
-    events_data = await vehicle_service.get_all_vehicle_events(db)
-    return {"events": events_data}
+
 # 차량 조회
 @router.get(
     "/{vehicle_id}",
@@ -82,3 +74,12 @@ async def remove_vehicle(
 ):
     await vehicle_service.delete_vehicle_by_id(db, vehicle_id=vehicle_id)
     return Response(status_code=status.HTTP_204_NO_CONTENT)
+
+@router.get(
+    "/events",
+    response_model=vehicle_schema.VehicleEventListResponse,
+    summary="차량 사건 로그 조회 (Get Vehicle Event Logs)"
+)
+async def list_vehicle_events(db: AsyncSession = Depends(get_session)):
+    events_data = await vehicle_service.get_all_vehicle_events(db)
+    return {"events": events_data}

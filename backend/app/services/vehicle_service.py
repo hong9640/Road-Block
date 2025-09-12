@@ -22,7 +22,7 @@ async def get_vehicle_by_id(db: AsyncSession, vehicle_id: int) -> models.Vehicle
     """
     statement = (
         select(models.Vehicle)
-        .where(models.Vehicle.vehicle_id == vehicle_id)
+        .where(models.Vehicle.id == vehicle_id)
         .options(selectinload(models.Vehicle.police_car))
     )
     result = await db.execute(statement)

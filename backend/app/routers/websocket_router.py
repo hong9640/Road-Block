@@ -1,5 +1,5 @@
 # app/routers/websocket_router.py
-
+from app.common.ws_codes import MessageType
 from fastapi import APIRouter, WebSocket, WebSocketDisconnect
 from app.services import websocket_service
 from app.schemas import websocket_schema # 스키마 임포트
@@ -45,70 +45,56 @@ router = APIRouter(tags=["WebSockets"])
 # --- (수정) 차량 관련 엔드포인트에서 vehicle_manager 사용 ---
 
 @router.websocket("/ws/vehicles")
-async def websocket_vehicle_register(websocket: WebSocket):
+async def unified_vehicle_websocket(websocket: WebSocket):
     """
-    차량 등록 요청을 처리하는 웹소켓.
-    ROS의 요청에 직접 응답하고, 모든 클라이언트에게 등록 이벤트를 브로드캐스트합니다.
+    차량 관련 모든 웹소켓 요청(등록, 위치, 상태)을 처리하는 통합 엔드포인트.
+    수신된 바이너리 데이터의 첫 번째 바이트(MessageType)를 기준으로 작업을 분기합니다.
     """
-    await vehicle_manager.connect(websocket) # vehicle_manager 사용
+    await vehicle_manager.connect(websocket)
     try:
         while True:
             data = await websocket.receive_bytes()
-            ros_response, front_event = await websocket_service.handle_vehicle_registration(data)
-            await websocket.send_bytes(ros_response)
-            if front_event:
-                await vehicle_manager.broadcast(front_event) # vehicle_manager 사용
+            if not data:
+                # 비어있는 데이터는 무시
+                continue
+
+            # --- 핵심 로직: 첫 바이트로 메시지 타입 식별 ---
+            message_type = data[0] 
+            
+            # 1. 차량 등록 요청 처리
+            if message_type == MessageType.EVENT_VEHICLE_REGISTERED:
+                ros_response, front_event = await websocket_service.handle_vehicle_registration(data)
+                # ROS 응답은 요청을 보낸 클라이언트에게만 전송
+                if ros_response:
+                    await websocket.send_bytes(ros_response)
+                # 프론트엔드 이벤트는 모두에게 브로드캐스트
+                if front_event:
+                    await vehicle_manager.broadcast(front_event)
+
+            # 2. 차량 위치 업데이트 처리
+            # NOTE: 클라이언트가 위치 정보 전송 시 MessageType을 포함해야 합니다. (아래 설명 참고)
+            elif message_type == MessageType.POSITION_BROADCAST_2D: # 위치 업데이트용 MessageType, 필요시 ws_codes에 정의
+                front_event = await websocket_service.handle_location_update(data)
+                if front_event:
+                    await vehicle_manager.broadcast(front_event)
+            
+            # 3. 차량 상태 업데이트 처리
+            elif message_type == MessageType.STATE_UPDATE:
+                ros_response, front_event = await websocket_service.handle_vehicle_status_update(data)
+                if ros_response:
+                    await websocket.send_bytes(ros_response)
+                if front_event:
+                    await vehicle_manager.broadcast(front_event)
+            
+            else:
+                print(f"Unknown message type received on /ws/vehicles: {message_type}")
 
     except WebSocketDisconnect:
-        print("Client disconnected from registration endpoint.")
+        print("Client disconnected from unified vehicle endpoint.")
         vehicle_manager.disconnect(websocket)
     except Exception as e:
+        print(f"An error occurred in the unified vehicle endpoint: {e}")
         traceback.print_exc()
-        vehicle_manager.disconnect(websocket)
-
-
-@router.websocket("/ws/vehicles/{vehicle_id}/location")
-async def websocket_vehicle_location_update(websocket: WebSocket, vehicle_id: int):
-    """
-    특정 차량의 위치 정보 업데이트를 처리하고 모든 클라이언트에게 브로드캐스트합니다.
-    """
-    # 위치 업데이트는 특정 차량에 종속되지 않고 모든 클라이언트에게 전파되므로 vehicle_manager 사용
-    await vehicle_manager.connect(websocket)
-    try:
-        while True:
-            data = await websocket.receive_bytes()
-            front_event = await websocket_service.handle_location_update(data)
-            if front_event:
-                await vehicle_manager.broadcast(front_event)
-                
-    except WebSocketDisconnect:
-        print(f"Client for vehicle {vehicle_id} location updates disconnected.")
-        vehicle_manager.disconnect(websocket)
-    except Exception as e:
-        print(f"Unhandled error in location WebSocket for vehicle {vehicle_id}: {e}")
-        vehicle_manager.disconnect(websocket)
-
-
-@router.websocket("/ws/vehicles/{vehicle_id}/status")
-async def websocket_vehicle_status_update(websocket: WebSocket, vehicle_id: int):
-    """
-    차량 상태 정보 업데이트를 처리하고, 결과를 모든 클라이언트에게 브로드캐스트합니다.
-    """
-    await vehicle_manager.connect(websocket)
-    try:
-        while True:
-            data = await websocket.receive_bytes()
-            ros_response, front_event = await websocket_service.handle_vehicle_status_update(data)
-            if ros_response:
-                await websocket.send_bytes(ros_response)
-            if front_event:
-                await vehicle_manager.broadcast(front_event)
-
-    except WebSocketDisconnect:
-        print(f"Client disconnected from vehicle {vehicle_id} status updates")
-        vehicle_manager.disconnect(websocket)
-    except Exception as e:
-        print(f"Unhandled error in status WebSocket for vehicle {vehicle_id}: {e}")
         vehicle_manager.disconnect(websocket)
 
 # ============================================
