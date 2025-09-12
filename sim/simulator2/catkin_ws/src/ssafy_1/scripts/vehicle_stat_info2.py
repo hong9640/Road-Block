@@ -278,3 +278,4 @@ if __name__ == "__main__":
     rospy.init_node("vehicle_status_sender", anonymous=False)
     VehicleStatusSender()
     rospy.spin()
+

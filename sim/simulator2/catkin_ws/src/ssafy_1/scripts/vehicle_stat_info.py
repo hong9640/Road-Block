@@ -1,172 +1,184 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 
+import os
 import struct
-import math
+import hmac
+import hashlib
 import websocket
 import rospy
-from morai_msgs.msg import EgoVehicleStatus, VehicleCollisionData
+from morai_msgs.msg import EgoVehicleStatus, CollisionData
+from dotenv import load_dotenv
+from time import time
 
-# -----------------------------
-# 설정 (ROS 파라미터로도 오버라이드 가능)
-# -----------------------------
+# =============================
+# 설정
+# =============================
 BASE_URL_DEFAULT = "ws://52.78.193.190:8080/ws/vehicles"
 EGO_TOPIC_DEFAULT = "/Ego_topic"
-COLLISION_TOPIC_DEFAULT = "/CollisionData"
-
-SEND_INTERVAL_SEC_DEFAULT = 1.0       # 상태 전송 주기
-FUEL_CHECK_INTERVAL_SEC_DEFAULT = 5.0 # 연료 감소 판단 주기
-MOVE_EPS_DEFAULT = 0.05               # 이동 판정 임계(미터)
+COLLISION_TOPIC_DEFAULT = "/CollisionData" 
+SEND_INTERVAL_SEC_DEFAULT = 1.0
+FUEL_CHECK_INTERVAL_SEC_DEFAULT = 5.0
 FUEL_DEC_PER_CHECK = 1
 
-HALF_DESTROYED_THRESHOLD_DEFAULT = 1  # 1회 이상 → 반파
-COMPLETE_DESTROYED_THRESHOLD_DEFAULT = 2  # 2회 이상 → 전파
+HALF_DESTROYED_THRESHOLD_DEFAULT = 1
+COMPLETE_DESTROYED_THRESHOLD_DEFAULT = 2
 
-# -----------------------------
-# 패킷 빌더 (HMAC 항상 0으로 채움)
-# -----------------------------
-def build_status_packet(message_type: int,
-                        vehicle_id: int,
-                        collision_count: int,
-                        status_enum: int,
+# =============================
+# HMAC KEY 로드
+# =============================
+ENV_PATH = "/home/ubuntu/S13P21A507/sim/simulator2/catkin_ws/.env"
+load_dotenv(ENV_PATH)
+SECRET_key_str = os.getenv("HMAC_SECRET_KEY")
+if not SECRET_key_str:
+    raise ValueError(f"HMAC_SECRET_KEY 환경 변수가 설정되지 않았습니다. .env 파일({ENV_PATH})을 확인해주세요.")
+SECRET_KEY = SECRET_key_str.encode("utf-8")
+
+
+def _hmac16(data: bytes) -> bytes:
+    return hmac.new(SECRET_KEY, data, hashlib.sha256).digest()[:16]
+
+
+# =============================
+# 패킷 빌더
+# =============================
+def build_status_packet(message_type: int, vehicle_id: int,
+                        collision_count: int, status_enum: int,
                         fuel: int) -> bytes:
-    """
-    레이아웃
-    [0]    uint8   : message_type (0x12)
-    [1-4]  uint32  : vehicle_id (LE)
-    [5]    uint8   : collision_count
-    [6]    uint8   : status_enum (0: NORMAL, 1: HALF_DESTROYED, 2: COMPLETE_DESTROYED)
-    [7]    uint8   : fuel (0-100)
-    [8-23] 16 bytes: HMAC(앞 8바이트에 대한 인증 코드) -> 여기서는 항상 0으로 채움
-    총 24 bytes
-    """
-    header8 = struct.pack("<BIBBB", message_type, vehicle_id, collision_count, status_enum, fuel)
-    digest = b"\x00" * 16  # HMAC 미사용 → 0 패딩
-    packet = header8 + digest
-    assert len(packet) == 24
-    return packet
+    header8 = struct.pack("<BIBBB", message_type, vehicle_id, fuel,
+                          collision_count, status_enum)
+    return header8 + _hmac16(header8)
 
-# -----------------------------
+
+def build_collision_packet(message_type: int, vehicle_id: int,
+                           collision_count: int) -> bytes:
+    head6 = struct.pack("<BIB", message_type, vehicle_id, collision_count)
+    return head6 + _hmac16(head6)
+
+
+# =============================
 # 유틸
-# -----------------------------
-def dist_xy(x1, y1, x2, y2):
-    dx, dy = (x2 - x1), (y2 - y1)
-    return math.hypot(dx, dy)
-
+# =============================
+NORMAL, HALF, COMPLETE = 0, 1, 2
 def to_status_enum(collision_count: int, half_th: int, complete_th: int) -> int:
-    if collision_count >= complete_th:
-        return 2  # COMPLETE_DESTROYED
-    if collision_count >= half_th:
-        return 1  # HALF_DESTROYED
-    return 0      # NORMAL
+    if collision_count >= complete_th: return COMPLETE
+    if collision_count >= half_th:     return HALF
+    return NORMAL
 
-# -----------------------------
+
+# =============================
 # 메인 클래스
-# -----------------------------
+# =============================
 class VehicleStatusSender:
     def __init__(self):
-        # ROS params
         self.base_url = rospy.get_param("~base_url", BASE_URL_DEFAULT)
         self.ego_topic = rospy.get_param("~ego_topic", EGO_TOPIC_DEFAULT)
         self.collision_topic = rospy.get_param("~collision_topic", COLLISION_TOPIC_DEFAULT)
 
         self.send_interval = float(rospy.get_param("~send_interval", SEND_INTERVAL_SEC_DEFAULT))
         self.fuel_check_interval = float(rospy.get_param("~fuel_check_interval", FUEL_CHECK_INTERVAL_SEC_DEFAULT))
-        self.move_eps = float(rospy.get_param("~move_eps", MOVE_EPS_DEFAULT))
 
         self.half_th = int(rospy.get_param("~half_destroyed_threshold", HALF_DESTROYED_THRESHOLD_DEFAULT))
         self.complete_th = int(rospy.get_param("~complete_destroyed_threshold", COMPLETE_DESTROYED_THRESHOLD_DEFAULT))
 
-        # 상태 변수
-        self.latest_status = None        # EgoVehicleStatus 최신값
-        self.vehicle_id = 0
-        self.fuel = 90                  # 0~100
-        self.collision_count = 0
-        self.in_collision = False        # 현재 충돌 지속 상태
+        self.force_send_every = float(rospy.get_param("~force_send_every", 0.0))
+        self.vehicle_id_override = int(rospy.get_param("~vehicle_id_override", 0))
+        self.collision_clear_hold = float(rospy.get_param("~collision_clear_hold", 0.2))
 
-        # 이동 판정용
-        self.last_pos_for_fuel = None    # (x, y)
-        self.pos_at_last_check = None    # 직전 체크 시점 좌표
+        # 상태 변수
+        self.latest_status = None
+        self.vehicle_id = 0
+        self.fuel = 100
+        self.collision_count = 0
+        self.in_collision = False
+        self._prev_collision_raw = False
+
+        # 전송 상태
+        self._last_sent = None
+        self._last_sent_ts = 0.0
+
+        # 최근 충돌 신호 시각(디바운스)
+        self._collision_last_seen_ts = 0.0
 
         # Subscribers
         rospy.Subscriber(self.ego_topic, EgoVehicleStatus, self.on_ego)
-        rospy.Subscriber(self.collision_topic, VehicleCollisionData, self.on_collision)
+        rospy.Subscriber(self.collision_topic, CollisionData, self.on_collision)
 
         # Timers
-        rospy.Timer(rospy.Duration(self.send_interval), self.timer_send_status)
+        rospy.Timer(rospy.Duration(self.send_interval), self.timer_maybe_send_status)
         rospy.Timer(rospy.Duration(self.fuel_check_interval), self.timer_check_fuel)
 
-        rospy.loginfo(f"[StatusSender] Ready. send_interval={self.send_interval}s, fuel_check={self.fuel_check_interval}s, move_eps={self.move_eps}m")
+        rospy.loginfo(f"[StatusSender] Ready. URL={self.base_url}")
 
     # ------------- 콜백들 -------------
     def on_ego(self, msg: EgoVehicleStatus):
         self.latest_status = msg
-        self.vehicle_id = msg.unique_id if hasattr(msg, "unique_id") else self.vehicle_id
+        if self.vehicle_id_override != 0:
+            self.vehicle_id = self.vehicle_id_override
+        else:
+            self.vehicle_id = msg.unique_id if getattr(msg, "unique_id", 0) != 0 else self.vehicle_id
 
-    def on_collision(self, msg: VehicleCollisionData):
-        # collision_object가 비어있지 않으면 '충돌 중'
-        has_collision = (len(msg.collision_object) > 0)
-        # 상승 에지(비충돌 -> 충돌)에서만 +1
-        if has_collision and not self.in_collision:
-            self.collision_count = min(self.collision_count + 1, 255)  # uint8 범위
-        # 상태 갱신
-        self.in_collision = has_collision
+    def on_collision(self, msg: CollisionData):
+        cnt_a = len(getattr(msg, "collision_object", []) or [])
+        cnt_b = len(getattr(msg, "collision_objecta", []) or [])
+        has_collision_raw = (cnt_a + cnt_b) > 0
+
+        # --- 카운트는 RAW 전이로만 ---
+        if has_collision_raw and not self._prev_collision_raw:
+            self.collision_count = min(self.collision_count + 1, 255)
+            rospy.loginfo(f"[StatusSender] Collision RISING edge -> count={self.collision_count}")
+            vehicle_id = (self.vehicle_id_override or self.vehicle_id) & 0xFFFFFFFF
+            evt_pkt = build_collision_packet(0x13, vehicle_id, int(self.collision_count) & 0xFF)
+            self._send_ws_binary(self.base_url, evt_pkt, tag="collision")
+
+        self._prev_collision_raw = has_collision_raw
+
+        # --- 표시 상태는 디바운스 적용 ---
+        now_ts = time()
+        if has_collision_raw:
+            self._collision_last_seen_ts = now_ts
+        hold = max(self.collision_clear_hold, 0.0)
+        self.in_collision = has_collision_raw or ((hold > 0.0) and ((now_ts - self._collision_last_seen_ts) < hold))
 
     def timer_check_fuel(self, _evt):
-        """5초마다 이동 여부를 확인해 연료 감소"""
-        if not self.latest_status:
-            return
-        x = self.latest_status.position.x
-        y = self.latest_status.position.y
-
-        if self.pos_at_last_check is None:
-            self.pos_at_last_check = (x, y)
-            return
-
-        moved = dist_xy(self.pos_at_last_check[0], self.pos_at_last_check[1], x, y) > self.move_eps
-        if moved and self.fuel > 0:
+        if self.fuel > 0:
             self.fuel = max(self.fuel - FUEL_DEC_PER_CHECK, 0)
-        # 다음 비교를 위해 현재 좌표 저장
-        self.pos_at_last_check = (x, y)
 
-    def timer_send_status(self, _evt):
-        """주기적으로 상태 패킷 전송"""
+    def timer_maybe_send_status(self, _evt):
         if not self.latest_status:
             return
 
-        # 좌표는 여기선 패킷에 포함되지 않지만, fuel 감소용 기준좌표 갱신은 해 둔다(최초 세팅용)
-        if self.last_pos_for_fuel is None:
-            self.last_pos_for_fuel = (self.latest_status.position.x, self.latest_status.position.y)
-
-        vehicle_id = int(self.vehicle_id) & 0xFFFFFFFF
+        vehicle_id = (self.vehicle_id_override or self.vehicle_id) & 0xFFFFFFFF
         status_enum = to_status_enum(self.collision_count, self.half_th, self.complete_th)
+        current = (int(self.fuel) & 0xFF,
+                   int(self.collision_count) & 0xFF,
+                   int(status_enum) & 0xFF)
+        now_ts = time()
+        must_force = (self.force_send_every > 0.0) and ((now_ts - self._last_sent_ts) >= self.force_send_every)
 
-        pkt = build_status_packet(
-            message_type=0x12,
-            vehicle_id=vehicle_id,
-            collision_count=int(self.collision_count) & 0xFF,
-            status_enum=int(status_enum) & 0xFF,
-            fuel=int(self.fuel) & 0xFF
-        )
-
-        url = f"{self.base_url}/{vehicle_id}/status"
-        self._send_ws_binary(url, pkt)
-
-        rospy.loginfo(f"[StatusSender] Sent status: id={vehicle_id}, collisions={self.collision_count}, status={status_enum}, fuel={self.fuel}")
+        if must_force or (self._last_sent is None or current != self._last_sent):
+            pkt = build_status_packet(0x12, vehicle_id, current[1], current[2], current[0])
+            self._send_ws_binary(self.base_url, pkt, tag="status")
+            self._last_sent = current
+            self._last_sent_ts = now_ts
+            rospy.loginfo(f"[StatusSender] Sent status: id={vehicle_id}, collisions={current[1]}, "
+                          f"status={current[2]}, fuel={current[0]} (24B)")
 
     # ------------- 전송 -------------
-    def _send_ws_binary(self, url: str, pkt: bytes):
+    def _send_ws_binary(self, url: str, pkt: bytes, tag=""):
         try:
-            ws = websocket.create_connection(url, timeout=2)
+            ws = websocket.create_connection(url, timeout=3)
             ws.send_binary(pkt)
             ws.close()
         except Exception as e:
-            rospy.logwarn(f"[StatusSender] WebSocket send failed: {e}")
+            rospy.logwarn(f"[WS] send failed ({tag}): {e}")
 
-# -----------------------------
+
+# =============================
 # 엔트리포인트
-# -----------------------------
+# =============================
 if __name__ == "__main__":
     rospy.init_node("vehicle_status_sender", anonymous=False)
     VehicleStatusSender()
     rospy.spin()
+
