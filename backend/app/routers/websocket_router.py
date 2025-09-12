@@ -81,7 +81,7 @@ async def send_initial_vehicle_data(websocket: WebSocket):
                     latest_location = vehicle.locations[-1]
                     loc_header = struct.pack('<BIff',
                                              MessageType.POSITION_BROADCAST_2D,
-                                             vehicle.vehicle_id,
+                                             vehicle.id,
                                              latest_location.position_x,
                                              latest_location.position_y)
                     loc_packet = loc_header + _calculate_hmac(loc_header)
@@ -100,7 +100,7 @@ async def send_initial_vehicle_data(websocket: WebSocket):
                     
                     status_header = struct.pack('<BIBBB',
                                                 MessageType.STATE_UPDATE,
-                                                vehicle.vehicle_id,
+                                                vehicle.id,
                                                 police_status.collision_count,
                                                 status_int,
                                                 police_status.fuel)
