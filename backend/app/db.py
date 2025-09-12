@@ -3,7 +3,7 @@
 import os
 import json
 from typing import AsyncGenerator, Optional
-
+from sqlalchemy.orm import selectinload
 from sqlalchemy.ext.asyncio import create_async_engine, AsyncSession, async_sessionmaker
 from sqlmodel import SQLModel, Field, select
 from app.schemas.websocket_schema import VehicleRegistrationRequest
@@ -122,12 +122,15 @@ async def update_vehicle_status(session: AsyncSession, vehicle_pk_id: int, fuel:
 
 async def get_all_vehicles(session: AsyncSession) -> list[Vehicle]:
     """
-    데이터베이스에 저장된 모든 Vehicle 객체 리스트를 반환합니다.
-    초기 데이터 로딩 시 사용됩니다.
+    (수정됨) 모든 Vehicle 객체 리스트를 관계된 locations, police_car 정보와 함께 반환합니다.
     """
-    statement = select(Vehicle)
+    statement = select(Vehicle).options(
+        selectinload(Vehicle.locations),  # 차량 위치 정보들을 함께 로드
+        selectinload(Vehicle.police_car)   # 경찰차 상태 정보를 함께 로드
+    )
     result = await session.execute(statement)
-    return result.scalars().all()
+    # .unique()를 사용하여 중복된 Vehicle 객체를 제거합니다.
+    return result.scalars().unique().all()
 
 async def save_event(session: AsyncSession, event_data: dict) -> Event:
     """ ✨ (수정됨) 딕셔너리로부터 Event 모델을 생성하여 저장합니다. """

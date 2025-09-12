@@ -12,6 +12,7 @@ from app.db import AsyncSessionMaker, get_all_vehicles, get_all_events
 from app.services.websocket_service import _calculate_hmac
 from app.models.enums import EventStatus, VehicleTypeEnum
 from app.schemas import websocket_schema
+from app.models.enums import PoliceCarStatusEnum
 
 # --- 연결 관리자 클래스 ---
 class ConnectionManager:
@@ -50,27 +51,63 @@ router = APIRouter(tags=["WebSockets"])
 # ===================================================================
 
 async def send_initial_vehicle_data(websocket: WebSocket):
-    """새로 연결된 클라이언트에게 DB의 모든 차량 정보를 전송합니다."""
+    """
+    (수정됨) 새로 연결된 클라이언트에게 DB의 모든 차량 정보와
+    각 차량의 최신 위치, 상태 정보를 전송합니다.
+    """
     print("새 클라이언트에게 기존 차량 데이터를 전송합니다.")
     try:
         async with AsyncSessionMaker() as db_session:
+            # 1. DB에서 차량 및 연관된 모든 정보를 효율적으로 가져옵니다.
             all_vehicles = await get_all_vehicles(db_session)
             
             for vehicle in all_vehicles:
+                # --- 패킷 1: 차량 기본 정보 전송 (0xA2) ---
                 car_name_padded = vehicle.car_name.encode('utf-8').ljust(10, b'\x00')
                 vehicle_type_int = 0 if vehicle.vehicle_type == VehicleTypeEnum.POLICE else 1
                 
-                event_header = struct.pack('<BIIB10s',
+                reg_header = struct.pack('<BIIB10s',
                                            MessageType.EVENT_VEHICLE_REGISTERED,
                                            vehicle.id,
                                            vehicle.vehicle_id,
                                            vehicle_type_int,
                                            car_name_padded)
-                
-                event_hmac = _calculate_hmac(event_header)
-                packet = event_header + event_hmac
-                await websocket.send_bytes(packet)
-        print(f"기존 차량 데이터 전송 완료: 총 {len(all_vehicles)}대")
+                reg_packet = reg_header + _calculate_hmac(reg_header)
+                await websocket.send_bytes(reg_packet)
+
+                # --- 패킷 2: 차량 최신 위치 정보 전송 (0xB1) ---
+                if vehicle.locations:
+                    # locations 리스트의 가장 마지막 항목이 최신 위치라고 가정합니다.
+                    latest_location = vehicle.locations[-1]
+                    loc_header = struct.pack('<BIff',
+                                             MessageType.POSITION_BROADCAST_2D,
+                                             vehicle.vehicle_id,
+                                             latest_location.position_x,
+                                             latest_location.position_y)
+                    loc_packet = loc_header + _calculate_hmac(loc_header)
+                    await websocket.send_bytes(loc_packet)
+
+                # --- 패킷 3: 경찰차 상태 정보 전송 (0xD0) ---
+                if vehicle.vehicle_type == VehicleTypeEnum.POLICE and vehicle.police_car:
+                    police_status = vehicle.police_car
+                    # Enum 멤버를 명세서의 정수 값으로 변환
+                    status_map = {
+                        PoliceCarStatusEnum.NORMAL: 0,
+                        PoliceCarStatusEnum.HALF_DESTROYED: 1,
+                        PoliceCarStatusEnum.COMPLETE_DESTROYED: 2,
+                    }
+                    status_int = status_map.get(police_status.status, 0)
+                    
+                    status_header = struct.pack('<BIBBB',
+                                                MessageType.STATE_UPDATE,
+                                                vehicle.vehicle_id,
+                                                police_status.collision_count,
+                                                status_int,
+                                                police_status.fuel)
+                    status_packet = status_header + _calculate_hmac(status_header)
+                    await websocket.send_bytes(status_packet)
+
+        print(f"기존 차량 데이터(위치, 상태 포함) 전송 완료: 총 {len(all_vehicles)}대")
     except Exception as e:
         print(f"초기 차량 데이터 전송 중 에러: {e}")
         traceback.print_exc()
