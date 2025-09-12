@@ -51,7 +51,7 @@ async def main():
     # --- 더미 데이터 정의 ---
     # id가 6인 차량의 vehicle_id(ROS ID)가 6이라고 가정합니다.
     # 만약 다르다면 이 값을 실제 vehicle_id로 변경해야 합니다.
-    TARGET_VEHICLE_ID = 6
+    TARGET_VEHICLE_ID = 123
     DUMMY_POS_X = 37.1234
     DUMMY_POS_Y = 127.5678
     
