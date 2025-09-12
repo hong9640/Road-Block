@@ -66,6 +66,7 @@ async def create_db_and_tables():
         await conn.run_sync(SQLModel.metadata.create_all)
     print("--- Database tables created successfully. ---")
 
+
 async def get_vehicle_by_ros_id(session: AsyncSession, ros_vehicle_id: int) -> Optional[Vehicle]:
     """ROS vehicle_id를 사용하여 Vehicle 테이블에서 해당하는 차량 객체를 찾습니다."""
     statement = select(Vehicle).where(Vehicle.vehicle_id == ros_vehicle_id)
@@ -89,58 +90,57 @@ async def save_vehicle(session: AsyncSession, vehicle_instance: Vehicle) -> Vehi
     await session.refresh(vehicle_instance)
     return vehicle_instance
 
-async def save_vehicle_location(session: AsyncSession, location_data: VehicleLocationUpdateRequest) -> bool:
-    """
-    (수정) 새로운 차량 위치 정보를 저장하고, 성공 여부를 반환합니다.
-    """
-    # 1. ROS ID로 내부 PK 찾기
-    vehicle = await get_vehicle_by_ros_id(session, location_data.vehicle_id)
-    if not vehicle:
-        print(f"Location update failed: Vehicle with ROS ID {location_data.vehicle_id} not found.")
-        return False # 차량을 찾지 못함
-
-    # 2. 찾은 내부 PK(vehicle.id)를 사용하여 위치 정보 객체 생성
+async def save_vehicle_location(session: AsyncSession, vehicle_pk_id: int, pos_x: float, pos_y: float) -> bool:
+    """ ✨ (수정됨) 차량의 내부 ID(PK)와 위치 좌표를 받아 DB에 저장합니다. """
     new_location = VehicleLocation(
-        vehicle_id=vehicle.id,
-        position_x=location_data.position_x,
-        position_y=location_data.position_y
+        vehicle_id=vehicle_pk_id,
+        position_x=pos_x,
+        position_y=pos_y
     )
     session.add(new_location)
     await session.commit()
     return True
 
 
-async def update_vehicle_status(session: AsyncSession, status_data: VehicleStatusUpdateRequest) -> Optional[PoliceCar]:
-    """
-    (수정) 차량(PoliceCar)의 상태(충돌 횟수, 상태, 연료)를 업데이트합니다.
-    """
-    # 1. ROS ID로 내부 PK 찾기
-    vehicle = await get_vehicle_by_ros_id(session, status_data.vehicle_id)
-    if not vehicle:
-        print(f"Status update failed: Vehicle with ROS ID {status_data.vehicle_id} not found.")
-        return None # 차량을 찾지 못함
-
-    # 2. 찾은 내부 PK(vehicle.id)를 사용하여 PoliceCar 객체 조회
-    statement = select(PoliceCar).where(PoliceCar.vehicle_id == vehicle.id)
+async def update_vehicle_status(session: AsyncSession, vehicle_pk_id: int, fuel: int, collision_count: int, status: PoliceCarStatusEnum) -> Optional[PoliceCar]:
+    """ ✨ (수정됨) PoliceCar의 상태를 업데이트합니다. """
+    statement = select(PoliceCar).where(PoliceCar.vehicle_id == vehicle_pk_id)
     result = await session.execute(statement)
     police_car = result.scalar_one_or_none()
 
     if not police_car:
         return None
 
-    # 3. 상태 업데이트
-    police_car.collision_count = status_data.collision_count
-    police_car.fuel = status_data.fuel
+    police_car.collision_count = collision_count
+    police_car.fuel = fuel
+    police_car.status = status
     
-    status_map = {
-        0: PoliceCarStatusEnum.NORMAL,
-        1: PoliceCarStatusEnum.HALF_DESTROYED,
-        2: PoliceCarStatusEnum.COMPLETE_DESTROYED,
-    }
-    police_car.status = status_map.get(status_data.status_enum, police_car.status)
-
     session.add(police_car)
     await session.commit()
     await session.refresh(police_car)
-    
     return police_car
+
+async def get_all_vehicles(session: AsyncSession) -> list[Vehicle]:
+    """
+    데이터베이스에 저장된 모든 Vehicle 객체 리스트를 반환합니다.
+    초기 데이터 로딩 시 사용됩니다.
+    """
+    statement = select(Vehicle)
+    result = await session.execute(statement)
+    return result.scalars().all()
+
+async def save_event(session: AsyncSession, event_data: dict) -> Event:
+    """ ✨ (수정됨) 딕셔너리로부터 Event 모델을 생성하여 저장합니다. """
+    new_event = Event(**event_data)
+    session.add(new_event)
+    await session.commit()
+    await session.refresh(new_event)
+    return new_event
+
+async def get_all_events(session: AsyncSession) -> list[Event]:
+    """
+    데이터베이스에 저장된 모든 Event 객체 리스트를 반환합니다.
+    """
+    statement = select(Event).order_by(Event.created_at) # 시간 순으로 정렬
+    result = await session.execute(statement)
+    return result.scalars().all()
