@@ -5,7 +5,7 @@ import {
   disconnect as WSdisconnect,
   sendMessage as WSsend,
 } from "./WSconnection";
-import { onEvent, onVehicle } from "@/handlers";
+import { onEvent, onVehicle } from "@/websockets/handlers";
 
 type WSStatus = "idle" | "connecting" | "open" | "closed" | "error";
 type Ctx = {

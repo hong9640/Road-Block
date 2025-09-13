@@ -36,4 +36,4 @@ export type SocketItem = {
   [url: string]: WebSocket;
 };
 
-export type MessageHandler = (data: string) => void;
+export type MessageHandler = (data: ArrayBuffer) => void;

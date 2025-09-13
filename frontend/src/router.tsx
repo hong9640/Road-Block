@@ -4,7 +4,7 @@ import ControlSideBar from "./features/dashboard/components/ControlSidebar";
 import MainPage from "./pages/MainPage";
 import LogsPage from "./pages/LogsPage";
 import { MapPage } from "./pages/MapPage";
-import { WSProvider } from "./utils/WSProvider";
+import { WSProvider } from "./websockets/WSProvider";
 
 export const router = createBrowserRouter([
   { path: "/", element: <MainPage /> },
