@@ -1,5 +1,5 @@
 # app/routers/websocket_router.py
-
+# 웹소켓 라우터
 from fastapi import APIRouter, WebSocket, WebSocketDisconnect
 import traceback
 import struct
