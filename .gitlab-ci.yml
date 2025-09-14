@@ -12,7 +12,8 @@ variables:
 push-image:
   stage: push
   tags: 
-    - shell 
+    - be
+    - master 
   script:
     - echo "EC2 서버 셸에서 직접 스크립트를 실행합니다."
     - docker build -t "$IMAGE_LATEST" -t "$IMAGE_SHA" .
