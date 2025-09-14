@@ -20,4 +20,4 @@ push-image:
     - docker push "$IMAGE_SHA"
     - echo "CI pipeline finished successfully!"
   rules:
-    - if: '$CI_COMMIT_BRANCH == "be, master"'
+      - if: '$CI_COMMIT_BRANCH == "be" || $CI_COMMIT_BRANCH == "master"'
