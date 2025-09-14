@@ -1,4 +1,15 @@
-# .gitlab-ci.yml 파일의 push-image 작업 부분을 아래와 같이 임시 수정
+stages:
+  - push
+
+variables:
+  # Private Registry 주소를 변수로 설정
+  PRIVATE_REGISTRY: "registry:5000"
+  PROJECT_SLUG: "a507_car"
+  
+  # 이미지 경로를 Private Registry 주소에 맞게 수정
+  IMAGE_REPO:   "${PRIVATE_REGISTRY}/${PROJECT_SLUG}"
+  IMAGE_SHA:    "${IMAGE_REPO}:${CI_COMMIT_SHA}"
+  IMAGE_LATEST: "${IMAGE_REPO}:latest"
 
 push-image:
   stage: push
