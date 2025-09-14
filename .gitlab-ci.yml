@@ -1,11 +1,10 @@
-stages: [push]
-
 variables:
-  DOCKER_TLS_CERTDIR: ""
-  DOCKER_HOST: tcp://docker:2375
- 
+  # Private Registry 주소를 변수로 설정
+  PRIVATE_REGISTRY: "localhost:5000"
   PROJECT_SLUG: "a507_car"
-  IMAGE_REPO:   "${DOCKER_HUB_USERNAME}/${PROJECT_SLUG}"
+  
+  # 이미지 경로를 Private Registry 주소에 맞게 수정
+  IMAGE_REPO:   "${PRIVATE_REGISTRY}/${PROJECT_SLUG}"
   IMAGE_SHA:    "${IMAGE_REPO}:${CI_COMMIT_SHA}"
   IMAGE_LATEST: "${IMAGE_REPO}:latest"
 
@@ -14,21 +13,16 @@ push-image:
   tags: 
     - be
   image: docker:latest 
-  services: [docker:dind]
   script:
-    # 1. Docker Hub 로그인
-    - echo "Logging in to Docker Hub..."
-    - echo "$DOCKER_HUB_TOKEN" | docker login -u "$DOCKER_HUB_USERNAME" --password-stdin
+    # 1. 로그인 과정이 필요 없어짐 (같은 서버 내에 있으므로)
 
-    # 2. Docker 이미지 빌드 (latest와 commit SHA 태그 동시 적용)
+    # 2. Docker 이미지 빌드 (이전과 동일)
     - echo "Building Docker image..."
     - docker build -t "$IMAGE_LATEST" -t "$IMAGE_SHA" .
 
-    # 3. Docker Hub로 푸시
-    - echo "Pushing image to Docker Hub..."
+    # 3. Private Registry로 푸시
+    - echo "Pushing image to Private Registry..."
     - docker push "$IMAGE_LATEST"
     - docker push "$IMAGE_SHA"
 
     - echo "CI pipeline finished successfully!"
-  rules:
-    - if: '$CI_PIPELINE_SOURCE == "push"'
