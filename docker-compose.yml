@@ -2,14 +2,15 @@ version: '3.8'
 
 services:
   backend:
-  # env 못 읽고 있음
     image: localhost:5000/a507_car:latest
     container_name: backend-container
     restart: always
     env_file:
       - ./backend/.env
     expose:
-      - "8000"                         # nginx가 프록시할 내부 포트
+      - "8000"
+    networks: 
+      - s13p21a507_default
 
   nginx:
     image: nginx:latest
@@ -24,3 +25,9 @@ services:
       - /var/www/certbot:/var/www/certbot
     depends_on:
       - backend
+    networks: 
+      - s13p21a507_default
+
+networks: # <--- 파일 맨 아래에 이 블록 추가
+  my-app-net:
+    driver: bridge
