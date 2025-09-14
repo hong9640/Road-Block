@@ -11,6 +11,8 @@ variables:
 
 push-image:
   stage: push
+  tags: 
+    - be
   image: docker:latest 
   services: [docker:dind]
   script:
