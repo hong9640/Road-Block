@@ -10,7 +10,7 @@ services:
     expose:
       - "8000"
     networks: 
-      - s13p21a507_default
+      - my-app-net
 
   nginx:
     image: nginx:latest
@@ -26,7 +26,7 @@ services:
     depends_on:
       - backend
     networks: 
-      - s13p21a507_default
+      - my-app-net
 
 networks: # <--- 파일 맨 아래에 이 블록 추가
   my-app-net:
