@@ -5,8 +5,7 @@ FROM python:3.10-slim
 # 작업 디렉토리를 /app으로 설정
 WORKDIR /app
 
-# Dockerfile과 같은 위치에 있는 requirements.txt를 복사
-COPY requirements.txt .
+COPY backend/requirements.txt .
 # RUN pip install --no-cache-dir -r requirements.txt 
 RUN pip install --no-cache-dir -r requirements.txt
 
