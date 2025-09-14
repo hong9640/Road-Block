@@ -16,26 +16,19 @@ push-image:
   image: docker:latest 
   services: [docker:dind]
   script:
-    # --- 디버깅 코드 추가 ---
-    - echo "### 파일 목록 확인 --- 디버깅 ###"
-    - ls -R  # 현재 프로젝트의 모든 파일과 폴더 구조를 출력
-    - echo "##############################"
+    # 1. Docker Hub 로그인
+    - echo "Logging in to Docker Hub..."
+    - echo "$DOCKER_HUB_TOKEN" | docker login -u "$DOCKER_HUB_USERNAME" --password-stdin
 
-    - echo "IMAGE_REPO=$IMAGE_REPO"
-    - echo "$DOCKER_HUB_TOKEN" | docker login -u "$DOCKER_HUB_USERNAME" --password-stdin docker.io
+    # 2. Docker 이미지 빌드 (latest와 commit SHA 태그 동시 적용)
+    - echo "Building Docker image..."
+    - docker build -t "$IMAGE_LATEST" -t "$IMAGE_SHA" -f backend/Dockerfile ./backend
 
-    # --- docker build 명령어 수정 ---
-    # -f 로 Dockerfile 위치를 지정하고, 빌드 컨텍스트를 ./backend로 한정합니다
-    - docker build -t "$IMAGE_SHA" -f backend/Dockerfile ./backend
-
-    # --- 디버깅 코드 추가 ---
-    - echo "### 빌드된 로컬 이미지 확인 --- 디버깅 ###"
-    - docker images
-    - echo "###################################"
-
-    - docker push "$IMAGE_SHA"
-    - docker tag "$IMAGE_SHA" "$IMAGE_LATEST"
+    # 3. Docker Hub로 푸시
+    - echo "Pushing image to Docker Hub..."
     - docker push "$IMAGE_LATEST"
-    - echo "### Docker Hub 푸시 성공! ###"
+    - docker push "$IMAGE_SHA"
+
+    - echo "CI pipeline finished successfully!"
   rules:
     - if: '$CI_PIPELINE_SOURCE == "push"'
