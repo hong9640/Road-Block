@@ -1,3 +1,6 @@
+stages:
+  - push
+
 variables:
   # Private Registry 주소를 변수로 설정
   PRIVATE_REGISTRY: "localhost:5000"
