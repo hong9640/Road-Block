@@ -22,7 +22,7 @@ push-image:
 
     # 2. Docker 이미지 빌드 (latest와 commit SHA 태그 동시 적용)
     - echo "Building Docker image..."
-    - docker build -t "$IMAGE_LATEST" -t "$IMAGE_SHA" -f backend/Dockerfile ./backend
+    - docker build -t "$IMAGE_LATEST" -t "$IMAGE_SHA"
 
     # 3. Docker Hub로 푸시
     - echo "Pushing image to Docker Hub..."
