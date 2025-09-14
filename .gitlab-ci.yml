@@ -1,31 +1,12 @@
-stages:
-  - push
-
-variables:
-  # Private Registry 주소를 변수로 설정
-  PRIVATE_REGISTRY: "registry:5000"
-  PROJECT_SLUG: "a507_car"
-  
-  # 이미지 경로를 Private Registry 주소에 맞게 수정
-  IMAGE_REPO:   "${PRIVATE_REGISTRY}/${PROJECT_SLUG}"
-  IMAGE_SHA:    "${IMAGE_REPO}:${CI_COMMIT_SHA}"
-  IMAGE_LATEST: "${IMAGE_REPO}:latest"
+# .gitlab-ci.yml 파일의 push-image 작업 부분을 아래와 같이 임시 수정
 
 push-image:
   stage: push
   tags: 
     - be
-  image: docker:latest 
+  image: alpine:latest  # 작고 가벼운 이미지로 변경
   script:
-    # 1. 로그인 과정이 필요 없어짐 (같은 서버 내에 있으므로)
-
-    # 2. Docker 이미지 빌드 (이전과 동일)
-    - echo "Building Docker image..."
-    - docker build -t "$IMAGE_LATEST" -t "$IMAGE_SHA" .
-
-    # 3. Private Registry로 푸시
-    - echo "Pushing image to Private Registry..."
-    - docker push "$IMAGE_LATEST"
-    - docker push "$IMAGE_SHA"
-
-    - echo "CI pipeline finished successfully!"
+    - echo "--- 컨테이너의 DNS 설정 파일을 확인합니다 ---"
+    - cat /etc/resolv.conf
+    - echo "--- 'registry' 이름으로 조회를 시도합니다 ---"
+    - nslookup registry
