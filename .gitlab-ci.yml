@@ -17,7 +17,7 @@ push-image:
   services: [docker:dind]
   script:
     # --- 디버깅 코드 추가 ---
-    - echo "### 파일 목록 확인 (디버깅) ###"
+    - echo "### 파일 목록 확인 --- 디버깅 ###"
     - ls -R  # 현재 프로젝트의 모든 파일과 폴더 구조를 출력
     - echo "##############################"
 
@@ -29,7 +29,7 @@ push-image:
     - docker build -t "$IMAGE_SHA" -f backend/Dockerfile ./backend
 
     # --- 디버깅 코드 추가 ---
-    - echo "### 빌드된 로컬 이미지 확인 (디버깅) ###"
+    - echo "### 빌드된 로컬 이미지 확인 --- 디버깅 ###"
     - docker images
     - echo "###################################"
 
