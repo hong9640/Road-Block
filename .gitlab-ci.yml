@@ -27,5 +27,4 @@ push-image:
     - echo "Pushing image to Private Registry..."
     - docker push "$IMAGE_LATEST"
     - docker push "$IMAGE_SHA"
-
     - echo "CI pipeline finished successfully!"
