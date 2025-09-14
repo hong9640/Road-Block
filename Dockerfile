@@ -1,5 +1,4 @@
 # Dockerfile 
-
 FROM python:3.10-slim
 
 # 작업 디렉토리를 /app으로 설정
