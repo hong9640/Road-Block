@@ -55,7 +55,7 @@ async def get_map_geojson_by_id(map_id: int):
 
     # 반환할 최종 GeoJSON 파일의 전체 경로를 구성합니다.
     geojson_file_path = MAP_DATA_BASE_PATH / map_info["folder_name"] / "merged_road_surfaces.geojson"
-
+    print(geojson_file_path)
     if not geojson_file_path.is_file():
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
