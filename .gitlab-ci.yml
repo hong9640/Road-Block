@@ -15,9 +15,17 @@ push-image:
   stage: push
   tags: 
     - be
-  image: alpine:latest  # 작고 가벼운 이미지로 변경
+  image: docker:latest 
   script:
-    - echo "--- 컨테이너의 DNS 설정 파일을 확인합니다 ---"
-    - cat /etc/resolv.conf
-    - echo "--- 'registry' 이름으로 조회를 시도합니다 ---"
-    - nslookup registry
+    # 1. 로그인 과정이 필요 없어짐 (같은 서버 내에 있으므로)
+
+    # 2. Docker 이미지 빌드 (이전과 동일)
+    - echo "Building Docker image..."
+    - docker build -t "$IMAGE_LATEST" -t "$IMAGE_SHA" .
+
+    # 3. Private Registry로 푸시
+    - echo "Pushing image to Private Registry..."
+    - docker push "$IMAGE_LATEST"
+    - docker push "$IMAGE_SHA"
+
+    - echo "CI pipeline finished successfully!"
