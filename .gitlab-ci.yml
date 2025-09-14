@@ -1,24 +1,11 @@
 stages:
-  - push
+  - diagnostic
 
-variables:
-  PRIVATE_REGISTRY: "registry:5000"
-  PROJECT_SLUG: "a507_car"
-  IMAGE_REPO:   "${PRIVATE_REGISTRY}/${PROJECT_SLUG}"
-  IMAGE_SHA:    "${IMAGE_REPO}:${CI_COMMIT_SHA}"
-  IMAGE_LATEST: "${IMAGE_REPO}:latest"
-
-push-image:
-  stage: push
+print-all-variables:
+  stage: diagnostic
   tags: 
     - be
-  image: docker:latest 
   script:
-    - echo "Building Docker image..."
-    - docker build -t "$IMAGE_LATEST" -t "$IMAGE_SHA" .
-
-    - echo "Pushing image to Private Registry..."
-    - docker push "$IMAGE_LATEST"
-    - docker push "$IMAGE_SHA"
-
-    - echo "CI pipeline finished successfully!"
+    - echo "--- 파이프라인이 받은 모든 환경 변수를 출력합니다 ---"
+    - env | sort
+    - echo "--- 출력 완료 ---"
