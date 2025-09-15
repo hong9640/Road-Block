@@ -77,7 +77,7 @@ async def send_initial_vehicle_data(websocket: WebSocket):
                     PoliceCarStatusEnum.COMPLETE_DESTROYED: 2,
                 }
                 status_int = status_map.get(police_status.status, 0)
-                status_header = struct.pack('<BIBBB', MessageType.STATE_UPDATE, vehicle.vehicle_id, police_status.collision_count, status_int, police_status.fuel)
+                status_header = struct.pack('<BIBBB', MessageType.STATE_UPDATE, vehicle.id, police_status.collision_count, status_int, police_status.fuel)
                 await websocket.send_bytes(status_header + _calculate_hmac(status_header))
     print(f"기존 차량 데이터(위치, 상태 포함) 전송 완료: 총 {len(all_vehicles)}대")
 
