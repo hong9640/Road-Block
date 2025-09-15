@@ -64,9 +64,10 @@ async def send_initial_vehicle_data(websocket: WebSocket):
 
             # 2. 차량 최신 위치 정보 전송 (0xB1)
             if vehicle.locations:
-                latest_location = vehicle.locations[-1]
-                loc_header = struct.pack('<BIff', MessageType.POSITION_BROADCAST_2D, vehicle.id, latest_location.position_x, latest_location.position_y)
-                await websocket.send_bytes(loc_header + _calculate_hmac(loc_header))
+                # 모든 위치 정보를 순회하며 각각 메시지를 전송합니다.
+                for location in vehicle.locations:
+                    loc_header = struct.pack('<BIff', MessageType.POSITION_BROADCAST_2D, vehicle.id, location.position_x, location.position_y)
+                    await websocket.send_bytes(loc_header + _calculate_hmac(loc_header))
 
             # 3. 경찰차 상태 정보 전송 (0xD0)
             if vehicle.vehicle_type == VehicleTypeEnum.POLICE and vehicle.police_car:
