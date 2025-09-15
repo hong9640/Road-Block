@@ -32,11 +32,14 @@ export function onVehicle(binaryData: ArrayBuffer) {
 
     // 차량 위치 정보 업데이트
     case 0x11: {
-      const vehicle_id = view.getUint32(1, true);
-      const posX = view.getFloat32(5, true);
-      const posY = view.getFloat32(9, true);
+      const num_of_vehicle = view.getUint32(1, true);
 
-      console.log(vehicle_id, posX, posY);
+      for (let i = 0; i < num_of_vehicle; i++) {
+        const vehicle_id = view.getUint32(5 + 4 * i, true);
+        const posX = view.getFloat32(9 + 4 * i, true);
+        const posY = view.getFloat32(13 + 4 * i, true);
+        console.log(vehicle_id, posX, posY);
+      }
 
       break;
     }

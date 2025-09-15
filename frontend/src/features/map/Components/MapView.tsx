@@ -53,7 +53,7 @@ export default function Mapview() {
     mapRef.current = map;
 
     // 4) 벡터 스타일
-    const styleFn = (_feature: any, resolution?: number) =>
+    const styleFn = (_feature: unknown, resolution?: number) =>
       new Style({
         fill: new Fill({ color: "#ffffff" }),
         stroke: new Stroke({
@@ -84,7 +84,7 @@ export default function Mapview() {
         map.addLayer(layer);
 
         // 데이터 extent 계산
-        let dataExtent = createEmpty();
+        const dataExtent = createEmpty();
         features.forEach((f) => {
           const geom = f.getGeometry();
           if (geom) extentExtend(dataExtent, geom.getExtent());
