@@ -142,14 +142,34 @@ async def send_initial_event_data(websocket: WebSocket):
             if not event.catcher or not event.runner:
                 continue
             
+            # 검거 성공 이벤트 (0xFE)
             if event.status == EventStatus.CATCH:
-                event_model = websocket_schema.CaptureSuccessEvent(catcher_id=event.catcher.vehicle_id, runner_id=event.runner.vehicle_id)
+                event_model = websocket_schema.CaptureSuccessEvent(
+                    catcher_id=event.catcher_id, 
+                    runner_id=event.runner_id
+                )
                 binary_packet = websocket_service.create_capture_success_packet(event_model)
-            elif event.status == EventStatus.RUN:
-                event_model = websocket_schema.CatchFailedEvent(police_id=event.catcher.vehicle_id, runner_id=event.runner.vehicle_id)
+            
+            # 검거 실패 이벤트 (0xFD)
+            elif event.status == EventStatus.FAILED:
+                # `0xFD` 메시지에도 catcher_id와 runner_id가 모두 필요합니다. 
+                event_model = websocket_schema.CatchFailedEvent(
+                    catcher_id=event.catcher_id, 
+                    runner_id=event.runner_id
+                )
                 binary_packet = websocket_service.create_catch_failed_packet(event_model)
+
+            # 검거 시작 이벤트 (0xF0)
+            elif event.status == EventStatus.RUN:
+                # `0xFD` 메시지에도 catcher_id와 runner_id가 모두 필요합니다. 
+                event_model = websocket_schema.StartTrackingEvent(
+                    runner_id=event.runner_id
+                )
+                binary_packet = websocket_service.create_start_tracking_packet(event_model)
+
             if binary_packet:
                 await websocket.send_bytes(binary_packet)
+                
     print(f"기존 이벤트 데이터 전송 완료: 총 {len(all_events)}건")
 
 @router.websocket("/ws/events")
@@ -158,7 +178,7 @@ async def unified_event_websocket(websocket: WebSocket):
     try:
         await send_initial_event_data(websocket)
         while True:
-            await websocket.receive_text()
+            data = await websocket.receive_bytes()
     except (WebSocketDisconnect, RuntimeError):
         event_manager.disconnect(websocket)
     except Exception as e:
