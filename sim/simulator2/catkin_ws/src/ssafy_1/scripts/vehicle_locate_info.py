@@ -77,7 +77,7 @@ class LocationUpdater:
         pos_y = float(self.latest_msg.position.y)
 
         pkt = build_location_packet(vehicle_id, pos_x, pos_y)
-        url = f"{BASE_URL}/{vehicle_id}/location"
+        url = BASE_URL
 
         self.send_location(url, pkt)
 
