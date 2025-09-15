@@ -1,15 +1,16 @@
 # 1. 빌드 스테이지: Node.js 기반 환경에서 React 앱을 빌드합니다.
-FROM node:18-alpine AS builder
+FROM node:20-alpine AS builder
 
 # 컨테이너 내 작업 디렉토리 설정
 WORKDIR /app
 
-# 의존성 파일만 먼저 복사하여 캐시를 활용
+# 의존성 파일과 tsconfig.json을 먼저 복사하여 캐시를 활용
 COPY frontend/package.json frontend/package-lock.json ./
+COPY frontend/tsconfig.json ./
 RUN npm install
 
 # 소스 코드 전체를 복사
-COPY . .
+COPY frontend .
 
 # React 애플리케이션 빌드
 RUN npm run build
