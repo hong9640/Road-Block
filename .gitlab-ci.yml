@@ -16,7 +16,7 @@ push-image:
     - master 
   script:
     - echo "EC2 서버 셸에서 직접 스크립트를 실행합니다."
-    - docker build -t "$IMAGE_LATEST" -t "$IMAGE_SHA" .
+    - docker build -t "$IMAGE_LATEST" -t "$IMAGE_SHA" -f ./backend/Dockerfile .
     - docker push "$IMAGE_LATEST"
     - docker push "$IMAGE_SHA"
     - echo "CI pipeline finished successfully!"
