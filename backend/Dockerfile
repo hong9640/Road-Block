@@ -5,13 +5,13 @@ FROM python:3.10-slim
 WORKDIR /code
 
 # 3. 의존성 파일만 먼저 복사하여 Docker 빌드 캐시 활용
-COPY requirements.txt .
+COPY backend/requirements.txt .
 
 # 4. 의존성 설치
 RUN pip install --no-cache-dir -r requirements.txt
 
 # 5. backend 폴더 안의 모든 소스 코드를 컨테이너의 /code 폴더로 복사
-COPY . .
+COPY backend .
 
 # 6. FastAPI 앱이 실행될 8000번 포트 노출
 EXPOSE 8000
