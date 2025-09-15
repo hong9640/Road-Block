@@ -15,11 +15,19 @@ import Style from "ol/style/Style";
 import Fill from "ol/style/Fill";
 import Stroke from "ol/style/Stroke";
 
-import { buffer as extentBuffer, createEmpty, extend as extentExtend, isEmpty as extentIsEmpty } from "ol/extent";
+import {
+  buffer as extentBuffer,
+  createEmpty,
+  extend as extentExtend,
+  isEmpty as extentIsEmpty,
+} from "ol/extent";
+import { getMapAPI } from "@/Apis";
 
-const SURFACES_URL = "/merged_road_surfaces.geojson"; // public/에 파일 배치
+interface MapviewProps {
+  mapId: number;
+}
 
-export default function Mapview() {
+export default function Mapview({ mapId }: MapviewProps) {
   const mapEl = useRef<HTMLDivElement | null>(null);
   const mapRef = useRef<Map | null>(null);
 
@@ -66,11 +74,7 @@ export default function Mapview() {
     const fmt = new GeoJSON();
     let aborted = false;
 
-    fetch(SURFACES_URL)
-      .then((r) => {
-        if (!r.ok) throw new Error(`HTTP ${r.status}`);
-        return r.json();
-      })
+    getMapAPI(mapId)
       .then((json) => {
         if (aborted) return;
 
@@ -110,11 +114,11 @@ export default function Mapview() {
         // 8) 최종 View: 팬/줌 제약 설정
         const finalView = new View({
           projection: localProj!,
-          extent: limitedExtent,              // 드래그 제한
+          extent: limitedExtent, // 드래그 제한
           center: centerNow,
-          resolution: resNow,                 // 현재 해상도 유지
+          resolution: resNow, // 현재 해상도 유지
           minResolution: resNow / Math.pow(2, 2), // 확대 2단계 허용
-          maxResolution: resNow,                  // 더 이상 축소 불가
+          maxResolution: resNow, // 더 이상 축소 불가
           smoothExtentConstraint: false,
           constrainOnlyCenter: false,
           constrainResolution: true,
@@ -134,7 +138,7 @@ export default function Mapview() {
       map.setTarget(undefined);
       mapRef.current = null;
     };
-  }, []);
+  }, [mapId]);
 
   return (
     <div
