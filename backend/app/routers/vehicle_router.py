@@ -1,7 +1,7 @@
 from fastapi import APIRouter, Depends, status, Path
 from starlette.responses import Response
 from sqlalchemy.ext.asyncio import AsyncSession
-
+# 라우터
 # Import schemas, async service functions
 from app.schemas import vehicle_schema
 from app.services import vehicle_service
