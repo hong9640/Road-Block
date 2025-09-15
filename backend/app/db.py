@@ -144,6 +144,6 @@ async def get_all_events(session: AsyncSession) -> list[Event]:
     """
     데이터베이스에 저장된 모든 Event 객체 리스트를 반환합니다.
     """
-    statement = select(Event).order_by(Event.created_at) # 시간 순으로 정렬
+    statement = select(Event).order_by(Event.event_id) # 시간 순으로 정렬
     result = await session.execute(statement)
     return result.scalars().all()

@@ -4,21 +4,44 @@ stages:
 variables:
   # 변수는 이미지 이름을 만드는 데 여전히 필요합니다.
   PRIVATE_REGISTRY: "localhost:5000"
-  PROJECT_SLUG: "a507_car"
-  IMAGE_REPO:   "${PRIVATE_REGISTRY}/${PROJECT_SLUG}"
-  IMAGE_SHA:    "${IMAGE_REPO}:${CI_COMMIT_SHA}"
-  IMAGE_LATEST: "${IMAGE_REPO}:latest"
+  IMAGE_REPO_BACKEND: "${PRIVATE_REGISTRY}/a507_car"
+  IMAGE_SHA_BACKEND: "${IMAGE_REPO_BACKEND}:${CI_COMMIT_SHA}"
+  IMAGE_LATEST_BACKEND: "${IMAGE_REPO_BACKEND}:latest"
+  IMAGE_REPO_FRONTEND: "${PRIVATE_REGISTRY}/a507_frontend"
+  IMAGE_SHA_FRONTEND: "${IMAGE_REPO_FRONTEND}:${CI_COMMIT_SHA}"
+  IMAGE_LATEST_FRONTEND: "${IMAGE_REPO_FRONTEND}:latest"
 
-push-image:
+push-backend-image:
   stage: push
-  tags: 
+  tags:
     - be
-    - master 
+    - master
+    - develop
   script:
-    - echo "EC2 서버 셸에서 직접 스크립트를 실행합니다."
-    - docker build -t "$IMAGE_LATEST" -t "$IMAGE_SHA" -f ./backend/Dockerfile .
-    - docker push "$IMAGE_LATEST"
-    - docker push "$IMAGE_SHA"
-    - echo "CI pipeline finished successfully!"
+    - echo "Building and pushing backend image..."
+    - docker build -t "$IMAGE_LATEST_BACKEND" -t "$IMAGE_SHA_BACKEND" -f ./backend/Dockerfile .
+    - docker push "$IMAGE_LATEST_BACKEND"
+    - docker push "$IMAGE_SHA_BACKEND"
+    - echo "Backend CI pipeline finished successfully!"
   rules:
-      - if: '$CI_COMMIT_BRANCH == "be" || $CI_COMMIT_BRANCH == "master"'
+    - if: '$CI_COMMIT_BRANCH == "be" || $CI_COMMIT_BRANCH == "master" || $CI_COMMIT_BRANCH == "develop"'
+      changes:
+        - backend/**/*
+        - .gitlab-ci.yml
+
+push-frontend-image:
+  stage: push
+  tags:
+    - master
+    - develop
+  script:
+    - echo "Building and pushing frontend image..."
+    - docker build -t "$IMAGE_LATEST_FRONTEND" -t "$IMAGE_SHA_FRONTEND" -f ./frontend/Dockerfile .
+    - docker push "$IMAGE_LATEST_FRONTEND"
+    - docker push "$IMAGE_SHA_FRONTEND"
+    - echo "Frontend CI pipeline finished successfully!"
+  rules:
+    - if: '$CI_COMMIT_BRANCH == "be" || $CI_COMMIT_BRANCH == "master" || $CI_COMMIT_BRANCH == "develop"'
+      changes:
+        - frontend/**/*
+        - .gitlab-ci.yml

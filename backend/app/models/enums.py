@@ -12,3 +12,4 @@ class PoliceCarStatusEnum(str, enum.Enum):
 class EventStatus(str, enum.Enum):
     RUN = "run"
     CATCH = "catch"
+    FAILED = "failed"
