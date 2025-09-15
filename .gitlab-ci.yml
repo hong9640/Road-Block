@@ -1,0 +1,24 @@
+stages:
+  - push
+
+variables:
+  # 변수는 이미지 이름을 만드는 데 여전히 필요합니다.
+  PRIVATE_REGISTRY: "localhost:5000"
+  PROJECT_SLUG: "a507_car"
+  IMAGE_REPO:   "${PRIVATE_REGISTRY}/${PROJECT_SLUG}"
+  IMAGE_SHA:    "${IMAGE_REPO}:${CI_COMMIT_SHA}"
+  IMAGE_LATEST: "${IMAGE_REPO}:latest"
+
+push-image:
+  stage: push
+  tags: 
+    - be
+    - master 
+  script:
+    - echo "EC2 서버 셸에서 직접 스크립트를 실행합니다."
+    - docker build -t "$IMAGE_LATEST" -t "$IMAGE_SHA" -f ./backend/Dockerfile .
+    - docker push "$IMAGE_LATEST"
+    - docker push "$IMAGE_SHA"
+    - echo "CI pipeline finished successfully!"
+  rules:
+      - if: '$CI_COMMIT_BRANCH == "be" || $CI_COMMIT_BRANCH == "master"'

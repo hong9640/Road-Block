@@ -1,0 +1,33 @@
+version: '3.8'
+
+services:
+  backend:
+    image: localhost:5000/a507_car:latest
+    container_name: backend-container
+    restart: always
+    env_file:
+      - ./backend/.env
+    expose:
+      - "8000"
+    networks: 
+      - my-app-net
+
+  nginx:
+    image: nginx:latest
+    container_name: nginx-container
+    restart: always
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./nginx/default.conf:/etc/nginx/conf.d/default.conf
+      - /etc/letsencrypt:/etc/letsencrypt
+      - /var/www/certbot:/var/www/certbot
+    depends_on:
+      - backend
+    networks: 
+      - my-app-net
+
+networks: # <--- 파일 맨 아래에 이 블록 추가
+  my-app-net:
+    driver: bridge

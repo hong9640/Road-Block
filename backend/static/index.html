@@ -1,0 +1,112 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8" />
+  <title>OpenLayers · API 연동 지도</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <!-- OpenLayers -->
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/ol@v7.4.0/ol.css">
+  <script src="https://cdn.jsdelivr.net/npm/ol@v7.4.0/dist/ol.js"></script>
+  <style>
+    html, body { height:100%; margin:0; }
+    body { background:#f2f2f2; }
+    #map { position:absolute; inset:0; }
+    /* --- 드롭다운 메뉴 스타일 --- */
+    #map-selector {
+      position: absolute;
+      top: 10px;
+      left: 10px;
+      z-index: 1000;
+      padding: 8px;
+      font-size: 16px;
+      border: 1px solid #ccc;
+      border-radius: 4px;
+      background-color: white;
+      box-shadow: 0 2px 4px rgba(0,0,0,0.2);
+    }
+  </style>
+</head>
+<body>
+  <div id="map"></div>
+
+  <!-- --- 맵 선택 드롭다운 메뉴 --- -->
+  <select id="map-selector">
+    <option value="1">K-City</option>
+    <option value="2">KATRI</option>
+    <option value="3">KIAPI</option>
+    <option value="4">상암 (건물 없음)</option>
+    <option value="5">세종 BRT</option>
+    <option value="6">라스베가스 컨벤션 센터</option>
+  </select>
+
+  <script>
+    const proj = new ol.proj.Projection({ code:'LOCAL_XY', units:'m' });
+    ol.proj.addProjection(proj);
+
+    const map = new ol.Map({
+      target: 'map',
+      layers: [],
+      view: new ol.View({ projection: proj, center:[0,0], zoom:2 })
+    });
+
+    // --- ⬇️ (중요) 이 부분이 API와 연동되는 핵심 로직입니다 ⬇️ ---
+    
+    const mapSelector = document.getElementById('map-selector');
+    let currentMapLayer = null; // 현재 지도 레이어를 추적하기 위한 변수
+
+    // 지도를 불러오는 함수 정의
+    function loadMap(mapId) {
+      if (!mapId) return;
+
+      // 이전에 있던 지도 레이어가 있다면 제거
+      if (currentMapLayer) {
+        map.removeLayer(currentMapLayer);
+      }
+      
+      // 하드코딩된 파일 이름 대신, 백엔드의 API 엔드포인트를 호출합니다.
+      const SURFACES_URL = `/maps/${mapId}`;
+
+      fetch(SURFACES_URL)
+        .then(response => {
+          if (!response.ok) {
+            // API 호출이 실패하면 에러 메시지를 보여줍니다.
+            throw new Error(`[${response.status}] 맵 데이터를 불러오는 데 실패했습니다.`);
+          }
+          return response.json();
+        })
+        .then(geoJsonData => {
+          const fmt = new ol.format.GeoJSON();
+          const feats = fmt.readFeatures(geoJsonData, { dataProjection: proj, featureProjection: proj });
+
+          const roadStyle = new ol.style.Style({
+            fill:  new ol.style.Fill({ color: '#ffffff' }),
+            stroke:new ol.style.Stroke({ color: '#000000', width: 1 })
+          });
+
+          const src = new ol.source.Vector({ features: feats });
+          currentMapLayer = new ol.layer.Vector({ source: src, style: roadStyle });
+          map.addLayer(currentMapLayer);
+
+          // 데이터 범위로 화면 맞춤
+          let extent = ol.extent.createEmpty();
+          feats.forEach(f => ol.extent.extend(extent, f.getGeometry().getExtent()));
+          if (!ol.extent.isEmpty(extent)) map.getView().fit(extent, { padding:[20,20,20,20], duration:250 });
+        })
+        .catch(error => {
+            console.error("지도 로딩 중 오류 발생:", error);
+            alert(`ID '${mapId}'의 지도를 불러올 수 없습니다. 터미널의 서버 로그를 확인해주세요.`);
+        });
+    }
+
+    // 드롭다운 메뉴의 값이 바뀔 때마다 새로운 지도를 불러옵니다.
+    mapSelector.addEventListener('change', (event) => {
+      loadMap(event.target.value);
+    });
+
+    // 페이지가 처음 로드될 때 기본 지도를 불러옵니다.
+    loadMap(mapSelector.value);
+      
+  </script>
+</body>
+</html>
+
