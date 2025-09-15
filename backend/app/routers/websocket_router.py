@@ -55,19 +55,37 @@ async def send_initial_vehicle_data(websocket: WebSocket):
     async with AsyncSessionMaker() as db_session:
         all_vehicles = await get_all_vehicles(db_session)
         
+        # 1. 모든 차량의 위치 정보를 수집합니다.
+        # 위치 정보를 묶어서 하나의 메시지로 보낼 데이터를 준비합니다.
+        positions_data = []
+        for vehicle in all_vehicles:
+            if vehicle.locations:
+                # 최신 위치 정보만 사용
+                location = vehicle.locations[0]
+                # vehicle_id(uint32), position_x(float32), position_y(float32)
+                positions_data.append(struct.pack('<Iff', vehicle.vehicle_id, location.position_x, location.position_y))
+
+        # 2. POSITION_BROADCAST_2D 메시지 전체를 구성합니다.
+        if positions_data:
+            # message_type(uint8), num_of_vehicles(uint32) 헤더 구성
+            header = struct.pack('<BI', MessageType.POSITION_BROADCAST_2D, len(positions_data))
+            
+            # 모든 위치 데이터를 하나로 결합합니다.
+            packed_positions = b"".join(positions_data)
+            
+            # 전체 메시지를 완성합니다. (헤더 + 데이터)
+            full_message = header + packed_positions
+            
+            # HMAC을 계산하여 메시지에 추가하고 전송합니다.
+            await websocket.send_bytes(full_message + _calculate_hmac(full_message))
+        
+        # 3. 다른 메시지 타입은 그대로 개별 전송
         for vehicle in all_vehicles:
             # 1. 차량 기본 정보 전송 (0xA2)
             car_name_padded = vehicle.car_name.encode('utf-8').ljust(10, b'\x00')
             vehicle_type_int = 0 if vehicle.vehicle_type == VehicleTypeEnum.POLICE else 1
             reg_header = struct.pack('<BIIB10s', MessageType.EVENT_VEHICLE_REGISTERED, vehicle.id, vehicle.vehicle_id, vehicle_type_int, car_name_padded)
             await websocket.send_bytes(reg_header + _calculate_hmac(reg_header))
-
-            # 2. 차량 최신 위치 정보 전송 (0xB1)
-            if vehicle.locations:
-                # 모든 위치 정보를 순회하며 각각 메시지를 전송합니다.
-                for location in vehicle.locations:
-                    loc_header = struct.pack('<BIff', MessageType.POSITION_BROADCAST_2D, vehicle.id, location.position_x, location.position_y)
-                    await websocket.send_bytes(loc_header + _calculate_hmac(loc_header))
 
             # 3. 경찰차 상태 정보 전송 (0xD0)
             if vehicle.vehicle_type == VehicleTypeEnum.POLICE and vehicle.police_car:
@@ -80,6 +98,7 @@ async def send_initial_vehicle_data(websocket: WebSocket):
                 status_int = status_map.get(police_status.status, 0)
                 status_header = struct.pack('<BIBBB', MessageType.STATE_UPDATE, vehicle.id, police_status.collision_count, status_int, police_status.fuel)
                 await websocket.send_bytes(status_header + _calculate_hmac(status_header))
+    
     print(f"기존 차량 데이터(위치, 상태 포함) 전송 완료: 총 {len(all_vehicles)}대")
 
 @router.websocket("/ws/vehicles")
