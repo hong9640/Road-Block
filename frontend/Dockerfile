@@ -1,48 +1,25 @@
-# =========================================
-# Stage 1: Build the React.js Application
-# =========================================
-ARG NODE_VERSION=22.17.0
-ARG NGINX_VERSION=alpine3.22
+# 1. 빌드 스테이지: Node.js 기반 환경에서 React 앱을 빌드합니다.
+FROM node:18-alpine AS builder
 
-# Use a lightweight Node.js image for building (customizable via ARG)
-FROM node:${NODE_VERSION}-alpine AS builder
-
-# 빌드 환경 변수 정의 (선택사항)
-# ARG REACT_APP_API_URL
-
-# Set the working directory inside the container
+# 컨테이너 내 작업 디렉토리 설정
 WORKDIR /app
 
-# 의존성 파일만 먼저 복사하여 캐시 활용
+# 의존성 파일만 먼저 복사하여 캐시를 활용
 COPY package.json package-lock.json ./
+RUN npm install
 
-# Install project dependencies using npm ci (ensures a clean, reproducible install)
-RUN --mount=type=cache,target=/root/.npm npm ci
-
-# 소스 코드 복사
+# 소스 코드 전체를 복사
 COPY . .
 
 # React 애플리케이션 빌드
-# --build-arg로 전달된 환경 변수 사용
 RUN npm run build
 
-# =========================================
-# Stage 2: Prepare Nginx to Serve Static Files
-# =========================================
+# 2. 서빙 스테이지: Nginx 기반 환경에서 빌드된 정적 파일을 서빙합니다.
+FROM nginx:1.23-alpine
 
-# ---- Runtime (Unprivileged NGINX, 기본 listen 8080) ----
-FROM nginxinc/nginx-unprivileged:stable-alpine
+# 빌드 스테이지에서 생성된 빌드 결과물을 Nginx 정적 파일 위치로 복사
+COPY --from=builder /app/build /usr/share/nginx/html
 
-# Copy custom Nginx config
-COPY nginx.conf /etc/nginx/nginx.conf
-
-# Copy the static build output from the build stage to Nginx's default HTML serving directory
-COPY --from=builder /app/dist /usr/share/nginx/html
-
-# Expose port 8080 to allow HTTP traffic
-EXPOSE 8080
-
-# Start Nginx directly with custom config
+# Nginx가 기본적으로 80번 포트를 사용하므로 별도의 EXPOSE 8080은 불필요.
 # Nginx 실행
-ENTRYPOINT ["nginx", "-c", "/etc/nginx/nginx.conf"]
 CMD ["nginx", "-g", "daemon off;"]

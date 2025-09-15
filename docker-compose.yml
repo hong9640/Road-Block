@@ -9,7 +9,16 @@ services:
       - ./backend/.env
     expose:
       - "8000"
-    networks: 
+    networks:
+      - my-app-net
+
+  frontend:
+    image: localhost:5000/a507_frontend:latest
+    container_name: frontend-container
+    restart: always
+    env_file:
+      - ./frontend/.env
+    networks:
       - my-app-net
 
   nginx:
@@ -25,9 +34,10 @@ services:
       - /var/www/certbot:/var/www/certbot
     depends_on:
       - backend
-    networks: 
+      - frontend
+    networks:
       - my-app-net
 
-networks: # <--- 파일 맨 아래에 이 블록 추가
+networks:
   my-app-net:
     driver: bridge
