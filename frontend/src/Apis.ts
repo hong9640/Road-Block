@@ -1,4 +1,5 @@
 import axios from "axios";
+import { carsData, logsData } from "./__mocks__";
 
 const BASE_API_URL = import.meta.env.VITE_API_BASE;
 
@@ -6,10 +7,11 @@ const BASE_API_URL = import.meta.env.VITE_API_BASE;
 export const getVehicleListAPI = async () => {
   try {
     const response = await axios.get(`${BASE_API_URL}/vehicles`);
-    return response.data;
+    console.log(response);
+    return response.data.vehicles;
   } catch (e) {
     console.error(e);
-    return;
+    return carsData;    // 테스트용
   }
 };
 
@@ -20,7 +22,6 @@ export const getVehicleAPI = async (vehicle_id: number) => {
     return response.data;
   } catch (e) {
     console.error(e);
-    return;
   }
 };
 
@@ -28,10 +29,10 @@ export const getVehicleAPI = async (vehicle_id: number) => {
 export const getEventListAPI = async () => {
   try {
     const response = await axios.get(`${BASE_API_URL}/vehicles/events`);
-    return response.data;
+    return response.data.events;
   } catch (e) {
     console.error(e);
-    return;
+    return logsData;
   }
 };
 
@@ -45,6 +46,5 @@ export const getMapAPI = async (map_id: number) => {
     return response.data;
   } catch (e) {
     console.error(e);
-    return;
   }
 };

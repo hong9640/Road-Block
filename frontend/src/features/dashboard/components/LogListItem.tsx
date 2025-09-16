@@ -1,4 +1,4 @@
-import type { Log, Status } from "@/types";
+import type { Log, RunnerStatus } from "@/types";
 import { formatDateMMDD, formatTimeHHMMSS } from "@/utils/timeformat";
 import clsx from "clsx";
 
@@ -6,7 +6,7 @@ interface LogListItemProps {
   log: Log;
 }
 
-function eventBrief(event: Status) {
+function eventBrief(event: RunnerStatus) {
   switch (event) {
     case "RUN":
       return {

@@ -1,4 +1,4 @@
-import type { Log, Vehicle } from "./types";
+import type { CarPosition, CarDetail, Log, Vehicle } from "./types";
 
 export const mapsData = [
   { id: 1, label: "K-City", imgUrl: "/image/K-City.webp" },
@@ -85,31 +85,37 @@ export const logsData: Log[] = [
 
 export const carsData: Vehicle[] = [
   {
-    id: 1,
-    vehicle_id: 1,
-    car_name: "경찰1",
-    vehicle_type: "POLICE",
-    created_at: "2025-09-05T08:42:59Z",
+    id: 6,
+    car_name: "Police1",
+    vehicle_type: "police",
+    details: {
+      colision_count: 2,
+      fuel: 85,
+      status: "half_destroyed",
+    },
   },
   {
-    id: 2,
-    vehicle_id: 2,
-    car_name: "경찰2",
-    vehicle_type: "POLICE",
-    created_at: "2025-09-06T23:52:49Z",
+    id: 10,
+    car_name: "EGO_0",
+    vehicle_type: "police",
+    details: {
+      colision_count: 0,
+      fuel: 99,
+      status: "normal",
+    },
   },
   {
-    id: 3,
-    vehicle_id: 3,
-    car_name: "도주자",
-    vehicle_type: "RUNNER",
-    created_at: "2025-09-07T05:40:28Z",
+    id: 15,
+    car_name: "runnerX",
+    vehicle_type: "runner",
+    details: null,
   },
-  {
-    id: 4,
-    vehicle_id: 4,
-    car_name: "ego-004",
-    vehicle_type: "POLICE",
-    created_at: "2025-09-08T10:24:49Z",
-  },
+];
+
+export const posData: CarPosition[] = [
+  { id: 6, posX: 37.1234016418457, posY: 127.56800079345703 },
+  { id: 10, posX: 127.000994506836, posY: 37.50199890136719 },
+];
+
+export const statusData: { id: number; details: CarDetail }[] = [
 ];

@@ -1,15 +1,30 @@
-import { carsData, logsData, mapsData } from "@/__mocks__";
+import { logsData, mapsData } from "@/__mocks__";
 import type { DashboardContext } from "@/components/DashboardLayout";
 import { Menu, X } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import LogListItem from "./LogListItem";
 import VehicleListItem from "./VehicleListItem";
+import { useEffect } from "react";
+import { useVehicleStore } from "@/stores/useVehicleStore";
+import { getVehicleListAPI } from "@/Apis";
 
 export default function ControlSideBar({
   isOpen,
   setIsOpen,
 }: DashboardContext) {
   const nav = useNavigate();
+  const activeCars = useVehicleStore((s) => s.activeCars);
+  const getCars = useVehicleStore((s) => s.getCars);
+
+  useEffect(() => {
+    const fetchCars = async () => {
+      const list = await getVehicleListAPI();
+
+      getCars(list);
+    };
+
+    fetchCars();
+  }, []);
 
   return (
     <div className="flex h-screen">
@@ -45,8 +60,8 @@ export default function ControlSideBar({
             </li>
             <li>
               <div className="block p-2 mb-2 hover:bg-gray-700">차량 관리</div>
-              {carsData
-                .filter((car) => car.vehicle_type == "POLICE")
+              {activeCars
+                .filter((car) => car.vehicle_type == "police")
                 .map((car) => (
                   <VehicleListItem key={car.id} car={car} />
                 ))}

@@ -1,9 +1,11 @@
+import { useVehicleStore } from "@/stores/useVehicleStore";
+
+// 차량 수신 정보 처리
 export function onVehicle(binaryData: ArrayBuffer) {
   const view = new DataView(binaryData);
   const eventType = view.getUint8(0);
 
-  console.log(binaryData);
-  console.log(eventType);
+  const { updatePos } = useVehicleStore.getState();
 
   switch (eventType) {
     // 차량 등록
@@ -40,6 +42,8 @@ export function onVehicle(binaryData: ArrayBuffer) {
         const posX = view.getFloat32(9 + 12 * i, true);
         const posY = view.getFloat32(13 + 12 * i, true);
         console.log(vehicle_id, posX, posY);
+
+        updatePos(vehicle_id, posX, posY);
       }
 
       break;
@@ -50,9 +54,19 @@ export function onVehicle(binaryData: ArrayBuffer) {
       const vehicle_id = view.getUint32(1, true);
       const collision_count = view.getUint8(5);
       const status_enum = view.getUint8(6);
+      const status = () => {
+        switch (status_enum) {
+          case 0:
+            return "normal";
+          case 1:
+            return "half_destroyed";
+          case 2:
+            return "complete_destroyed";
+        }
+      };
       const fuel = view.getUint8(7);
 
-      console.log(vehicle_id, collision_count, status_enum, fuel);
+      console.log(vehicle_id, collision_count, status(), fuel);
       break;
     }
 
@@ -77,4 +91,13 @@ export function onVehicle(binaryData: ArrayBuffer) {
   }
 }
 
-export function onEvent() {}
+// 이벤트 수신 정보 처리
+export function onEvent(binaryData: ArrayBuffer) {
+  const view = new DataView(binaryData);
+  const eventType = view.getUint8(0);
+
+  switch (eventType) {
+    case 0:
+      break;
+  }
+}

@@ -1,8 +1,8 @@
 // Mapview.tsx
-import { useEffect, useRef } from "react";
-import "ol/ol.css";
+import { useEffect, useMemo, useRef } from "react";
 
-import Map from "ol/Map";
+import "ol/ol.css";
+import OLMap from "ol/Map"; // ← OpenLayers Map을 OLMap으로 alias
 import View from "ol/View";
 import Projection from "ol/proj/Projection";
 import { get as getProj } from "ol/proj";
@@ -14,14 +14,17 @@ import GeoJSON from "ol/format/GeoJSON";
 import Style from "ol/style/Style";
 import Fill from "ol/style/Fill";
 import Stroke from "ol/style/Stroke";
-
 import {
   buffer as extentBuffer,
   createEmpty,
   extend as extentExtend,
   isEmpty as extentIsEmpty,
 } from "ol/extent";
+
 import { getMapAPI } from "@/Apis";
+import VehicleMarker from "./VehicleMarker";
+import { useVehicleStore } from "@/stores/useVehicleStore";
+import type { CarPosition } from "@/types";
 
 interface MapviewProps {
   mapId: number;
@@ -29,13 +32,22 @@ interface MapviewProps {
 
 export default function Mapview({ mapId }: MapviewProps) {
   const mapEl = useRef<HTMLDivElement | null>(null);
-  const mapRef = useRef<Map | null>(null);
+  const mapRef = useRef<OLMap | null>(null);
+
+  const carsPosition = useVehicleStore((s) => s.carsPosition);
+  const activeCars = useVehicleStore((s) => s.activeCars);
+
+  // id → 위치 매핑 (Record로 구성하여 OL Map과의 이름 충돌 회피)
+  const posById = useMemo<Record<number, CarPosition>>(() => {
+    const acc: Record<number, CarPosition> = {};
+    for (const p of carsPosition) acc[p.id] = p;
+    return acc;
+  }, [carsPosition]);
 
   useEffect(() => {
     if (!mapEl.current) return;
 
     // 1) 로컬 XY 투영(단위 m 가정)
-    // - 등록 후 getProj로 동일 인스턴스 재사용(OL 내부 캐시)
     const code = "SIM:LOCAL";
     let localProj = getProj(code) as Projection | null;
     if (!localProj) {
@@ -53,7 +65,7 @@ export default function Mapview({ mapId }: MapviewProps) {
     });
 
     // 3) 맵 생성 (레이어는 데이터 로딩 후 주입)
-    const map = new Map({
+    const map = new OLMap({
       target: mapEl.current!,
       view: tempView,
       layers: [],
@@ -129,10 +141,9 @@ export default function Mapview({ mapId }: MapviewProps) {
       })
       .catch((err) => {
         console.error("GeoJSON 로드 실패:", err);
-        // UI alert은 지양—필요 시 상위에서 처리
       });
 
-    // 정리(cleanup): 타겟 해제 및 이벤트/레이어 정리
+    // 정리(cleanup)
     return () => {
       aborted = true;
       map.setTarget(undefined);
@@ -146,8 +157,23 @@ export default function Mapview({ mapId }: MapviewProps) {
       style={{
         position: "absolute",
         inset: 0,
-        background: "#d9d9d9", // 밝은 회색 배경
+        background: "#d9d9d9",
       }}
-    />
+    >
+      {mapRef.current &&
+        activeCars
+          .map((v) => ({ v, pos: posById[v.id] }))
+          .filter(({ pos }) => !!pos) // 위치가 있는 차량만 렌더
+          .map(({ v, pos }) => (
+            <VehicleMarker
+              key={v.id}
+              id={v.id}
+              posX={pos!.posX}
+              posY={pos!.posY}
+              type={v.vehicle_type}
+              map={mapRef.current}
+            />
+          ))}
+    </div>
   );
 }
