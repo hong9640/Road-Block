@@ -15,8 +15,8 @@ HMAC_SECRET_KEY_STR = os.getenv("HMAC_SECRET_KEY")
 VEHICLE_ID = 9901 
 
 # 업데이트할 새로운 X, Y 좌표
-POSITION_X = 127.001
-POSITION_Y = 37.502
+POSITION_X = 125.001
+POSITION_Y = 30.502
 # ---------------------------------------------
 
 def generate_location_packet():

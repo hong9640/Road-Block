@@ -14,7 +14,7 @@ class VehicleBase(BaseModel):
     vehicle_type: enums.VehicleTypeEnum = Field(..., example=enums.VehicleTypeEnum.POLICE)
 
 class VehicleResponse(VehicleBase):
-    vehicle_id: int = Field(..., description="The business identifier for the vehicle", example=1)
+    id: int = Field(..., description="The business identifier for the vehicle", example=1)
     # PoliceCarDetails는 POLICE 타입 차량에만 존재하므로 Optional
     details: Optional[PoliceCarDetails] = None
 
@@ -32,7 +32,7 @@ class VehicleUpdate(BaseModel):
     car_name: str = Field(..., max_length=50, example="Police-03")
 
 class EventResponse(BaseModel):
-    vehicle_id: int 
+    id: int 
     car_name: str
     vehicle_type: enums.VehicleTypeEnum 
     status: enums.EventStatus 

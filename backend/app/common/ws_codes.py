@@ -21,7 +21,8 @@ class RosErrorCode(IntEnum):
     """ROS(임베디드) 통신 에러 코드 (NACK_ERROR 용)"""
     INVALID_FORMAT = 1
     DUPLICATE_NAME = 2
-    INVALID_DATA = 3
+    INVALID_COORDINATE = 3
+    INVALID_DATA = 4
 
 
 class FrontErrorCode(IntEnum):

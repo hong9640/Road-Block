@@ -16,14 +16,14 @@ async def get_all_vehicles(db: AsyncSession) -> List[models.Vehicle]:
     result = await db.execute(statement)
     return result.scalars().all()
 
-async def get_vehicle_by_id(db: AsyncSession, vehicle_id: int) -> models.Vehicle:
+async def get_vehicle_by_id(db: AsyncSession, id: int) -> models.Vehicle:
     """
     Retrieves a single vehicle by its business logic ID (vehicle_id).
     """
     statement = (
         select(models.Vehicle)
-        .where(models.Vehicle.id == vehicle_id)
         .options(selectinload(models.Vehicle.police_car))
+        .where(models.Vehicle.id == id)
     )
     result = await db.execute(statement)
     vehicle = result.scalar_one_or_none()
@@ -31,15 +31,15 @@ async def get_vehicle_by_id(db: AsyncSession, vehicle_id: int) -> models.Vehicle
     if not vehicle:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
-            detail=f"Vehicle with id {vehicle_id} not found",
+            detail=f"Vehicle with id {id} not found",
         )
     return vehicle
 
-async def update_vehicle_name(db: AsyncSession, vehicle_id: int, car_name: str) -> models.Vehicle:
+async def update_vehicle_name(db: AsyncSession, id: int, car_name: str) -> models.Vehicle:
     """
     Updates the car_name of a specific vehicle.
     """
-    vehicle = await get_vehicle_by_id(db, vehicle_id)
+    vehicle = await get_vehicle_by_id(db, id)
     vehicle.car_name = car_name
     db.add(vehicle)
     await db.commit()
@@ -48,11 +48,11 @@ async def update_vehicle_name(db: AsyncSession, vehicle_id: int, car_name: str) 
     await db.refresh(vehicle, attribute_names=['police_car'])
     return vehicle
 
-async def delete_vehicle_by_id(db: AsyncSession, vehicle_id: int) -> None:
+async def delete_vehicle_by_id(db: AsyncSession, id: int) -> None:
     """
     Deletes a vehicle by its business logic ID.
     """
-    vehicle = await get_vehicle_by_id(db, vehicle_id)
+    vehicle = await get_vehicle_by_id(db, id)
     await db.delete(vehicle)
     await db.commit()
     return
@@ -70,7 +70,7 @@ async def get_all_vehicle_events(db: AsyncSession) -> List[EventResponse]:
         if event.runner:
             response_events.append(
                 EventResponse(
-                    vehicle_id=event.runner.vehicle_id,
+                    id=event.runner.vehicle_id,
                     car_name=event.runner.car_name,
                     vehicle_type=event.runner.vehicle_type,
                     status=event.status,

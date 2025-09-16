@@ -37,42 +37,42 @@ async def list_vehicles(db: AsyncSession = Depends(get_session)):
 
 # 차량 조회
 @router.get(
-    "/{vehicle_id}",
+    "/{id}",
     response_model=vehicle_schema.VehicleResponse,
     summary="단일 차량 조회 (Get Single Vehicle)"
 )
 async def read_vehicle(
-    vehicle_id: int = Path(..., title="The business ID of the vehicle to get", ge=1),
+    id: int = Path(..., title="The business ID of the vehicle to get", ge=1),
     db: AsyncSession = Depends(get_session)
 ):
-    vehicle_from_db = await vehicle_service.get_vehicle_by_id(db, vehicle_id=vehicle_id)
+    vehicle_from_db = await vehicle_service.get_vehicle_by_id(db, id=id)
     return map_vehicle_to_response(vehicle_from_db)
 
 @router.patch(
-    "/{vehicle_id}",
+    "/{id}",
     response_model=vehicle_schema.VehicleResponse,
     summary="차량 정보 수정 (Update Vehicle Information)"
 )
 async def patch_vehicle(
     update_data: vehicle_schema.VehicleUpdate,
-    vehicle_id: int = Path(..., title="The business ID of the vehicle to update", ge=1),
+    id: int = Path(..., title="The business ID of the vehicle to update", ge=1),
     db: AsyncSession = Depends(get_session)
 ):
     updated_vehicle = await vehicle_service.update_vehicle_name(
-        db, vehicle_id=vehicle_id, car_name=update_data.car_name
+        db, id=id, car_name=update_data.car_name
     )
     return map_vehicle_to_response(updated_vehicle)
 
 @router.delete(
-    "/{vehicle_id}",
+    "/{id}",
     status_code=status.HTTP_204_NO_CONTENT,
     summary="차량 삭제 (Delete Vehicle)"
 )
 async def remove_vehicle(
-    vehicle_id: int = Path(..., title="The business ID of the vehicle to delete", ge=1),
+    id: int = Path(..., title="The business ID of the vehicle to delete", ge=1),
     db: AsyncSession = Depends(get_session)
 ):
-    await vehicle_service.delete_vehicle_by_id(db, vehicle_id=vehicle_id)
+    await vehicle_service.delete_vehicle_by_id(db, id=id)
     return Response(status_code=status.HTTP_204_NO_CONTENT)
 
 @router.get(

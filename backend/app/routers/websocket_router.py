@@ -86,7 +86,7 @@ async def unified_vehicle_websocket(websocket: WebSocket):
                 if ros_response: await websocket.send_bytes(ros_response)
                 if front_event: await vehicle_manager.broadcast(front_event)
             elif data_len == 28:
-                front_event = await websocket_service.handle_location_update(data, managers)
+                ros_response, front_event = await websocket_service.handle_location_update(data, managers)
                 if front_event: await vehicle_manager.broadcast(front_event)
             elif data_len == 24:
                 ros_response, front_event = await websocket_service.handle_vehicle_status_update(data, managers)
