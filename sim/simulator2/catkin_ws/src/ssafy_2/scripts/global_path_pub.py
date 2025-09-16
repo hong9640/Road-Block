@@ -1,76 +1,87 @@
-#!/usr/bin/env python
+#!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 
+import os
 import rospy
 import rospkg
-from math import cos,sin,pi,sqrt,pow
-from geometry_msgs.msg import Point32,PoseStamped
-from nav_msgs.msg import Odometry,Path
+from geometry_msgs.msg import PoseStamped
+from nav_msgs.msg import Path
 
 # global_path_pub 은 txt 파일로 저장한 Path 데이터를 global Path (전역경로) 로 읽어오는 예제입니다.
 # 만들어진 global Path(전역경로) 는 Local Path (지역경로) 를 만드는데 사용 된다.
 
-# 노드 실행 순서 
-# 1. Global Path publisher 선언 및 Global Path 변수 생성 
+# 노드 실행 순서
+# 1. Global Path publisher 선언 및 Global Path 변수 생성
 # 2. 읽어올 경로 의 텍스트파일 이름을 정하고, 읽기 모드로 열기
 # 3. 읽어 온 경로 데이터를 Global Path 변수에 넣기
 # 4. Global Path 정보 Publish
 
 
-class global_path_pub :
-    def __init__(self, pkg_name = 'ssafy_2', path_name = 'kcity'):
-        rospy.init_node('global_path_pub', anonymous = True)
+class global_path_pub:
+    def __init__(self, pkg_name='ssafy_2', path_name='kcity'):
+        rospy.init_node('global_path_pub', anonymous=True)
 
-        #TODO: (1) Global Path publisher 선언 및 Global Path 변수 생성 
-        '''
-        # Global Path 데이터를 Publish 하는 변수와 메세지를 담고있는 변수를 선언한다.
-        # 이때 Global Path 는 map 좌표계를 기준으로 생성한다.
-        self.global_path_pub = 
-        self.global_path_msg = 
-        self.global_path_msg.header.frame_id = 
+        # (1) Global Path publisher 선언 및 Global Path 변수 생성
+        self.global_path_pub = rospy.Publisher('/global_path', Path, queue_size=1, latch=True)
+        self.global_path_msg = Path()
+        self.global_path_msg.header.frame_id = 'map'  # 전역경로는 보통 map 프레임 기준
 
-        '''
-
-        #TODO: (2) 읽어올 경로 의 텍스트파일 이름을 정하고, 읽기 모드로 열기
-        '''
-        # Path 데이터가 기록 된 txt 파일의 경로와 이름을 정한다.
-        # 이후 읽기 모드로 연다.
-        # pkg_name 과 path_name 은 21 번 줄 참고한다.
+        # (2) 읽어올 경로 의 텍스트파일 이름을 정하고, 읽기 모드로 열기
         rospack = rospkg.RosPack()
         pkg_path = rospack.get_path(pkg_name)
-        full_path = 
-        self.f =         
-        lines = self.f.readlines()
 
-        '''
+        # 패키지 내 path 디렉토리 기준으로 파일을 찾습니다. (예: <pkg>/path/kcity.txt)
+        full_path = os.path.join(pkg_path, 'path', f'{path_name}.txt')
+        if not os.path.isfile(full_path):
+            rospy.logerr(f'[global_path_pub] 경로 파일이 없습니다: {full_path}')
+            raise FileNotFoundError(full_path)
 
-        #TODO: (3) 읽어 온 경로 데이터를 Global Path 변수에 넣기
-        '''
-        # 읽어온 x y z 좌표 데이터를 self.global_path_msg 변수에 넣는다.
-        # 넣어준 반복 문을 이용하여 작성한다.
-        for line in lines :
+        with open(full_path, 'r') as f:
+            lines = f.readlines()
+
+        # (3) 읽어 온 경로 데이터를 Global Path 변수에 넣기
+        self.global_path_msg.poses = []
+        for line in lines:
+            line = line.strip()
+            if not line:
+                continue
             tmp = line.split()
-            read_pose = 
-            read_pose.pose.position.x = 
-            read_pose.pose.position.y = 
-            read_pose.pose.orientation.w = 1
-            self.global_path_msg.poses.append(read_pose)        
-        self.f.close()
+            # 형식: x y [z], z가 없으면 0.0
+            try:
+                x = float(tmp[0])
+                y = float(tmp[1])
+                z = float(tmp[2]) if len(tmp) >= 3 else 0.0
+            except (ValueError, IndexError):
+                rospy.logwarn(f'[global_path_pub] 잘못된 라인 스킵: "{line}"')
+                continue
 
-        '''
+            read_pose = PoseStamped()
+            read_pose.header.frame_id = 'map'
+            read_pose.pose.position.x = x
+            read_pose.pose.position.y = y
+            read_pose.pose.position.z = z
+            # 방향 정보가 없으므로 단위 quaternion(0,0,0,1)
+            read_pose.pose.orientation.w = 1.0
 
-        rate = rospy.Rate(10) # 10hz
+            self.global_path_msg.poses.append(read_pose)
+
+        rospy.loginfo(f'[global_path_pub] 로드 완료: {len(self.global_path_msg.poses)} points from {full_path}')
+
+        rate = rospy.Rate(10)  # 10Hz
         while not rospy.is_shutdown():
-            #TODO: (4) Global Path 정보 Publish
-            '''
-            # Global Path 메세지 를 전송하는 publisher 를 만든다.
-            self.global_path_pub.
-            
-            '''
+            # (4) Global Path 정보 Publish
+            self.global_path_msg.header.stamp = rospy.Time.now()
+            # 각 포즈의 timestamp도 갱신해주면 down-stream에서 시간 검사하는 노드들에 안전합니다.
+            now = self.global_path_msg.header.stamp
+            for ps in self.global_path_msg.poses:
+                ps.header.stamp = now
+            self.global_path_pub.publish(self.global_path_msg)
             rate.sleep()
+
 
 if __name__ == '__main__':
     try:
         test_track = global_path_pub()
     except rospy.ROSInterruptException:
         pass
+
