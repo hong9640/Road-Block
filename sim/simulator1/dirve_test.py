@@ -1,288 +1,223 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
-import rospy
-import numpy as np
-import cv2
+import rospy, cv2, math, numpy as np
 from sensor_msgs.msg import CompressedImage
-from nav_msgs.msg import Path
-from geometry_msgs.msg import PoseStamped
 from morai_msgs.msg import CtrlCmd, EgoVehicleStatus
-import math
-from collections import deque
-np.set_printoptions(suppress=True)
 
-class LaneKeeperFrontView:
+class LaneKeepFrontViewMinimal:
     def __init__(self):
-        rospy.init_node("lane_keeper_frontview", anonymous=False)
-        rospy.loginfo("[lane_keeper_frontview] start")
+        rospy.init_node("lane_keep_frontview_min_overlay_only", anonymous=False)
 
-        # ====== 파라미터 ======
-        self.target_speed_kmh   = rospy.get_param("~target_speed_kmh", 30.0)   # 목표 속도
-        self.max_steer_rad      = rospy.get_param("~max_steer_rad", 0.6)       # 스티어 제한(라디안)
-        self.k_stanley          = rospy.get_param("~k_stanley", 0.6)           # Stanley 게인
-        self.look_y_pixels      = rospy.get_param("~look_y_pixels", 60)        # 하단에서 lookahead용 y
-        self.lane_width_m       = rospy.get_param("~lane_width_m", 3.5)        # 차로 폭(보정용)
-        self.use_yellow         = rospy.get_param("~use_yellow", True)         # 중앙 황색 차선 사용
-        self.min_lane_height_px = rospy.get_param("~min_lane_height_px", 120)  # 유효 차선 세로 길이 하한
-        self.ema_alpha          = rospy.get_param("~ema_alpha", 0.5)           # 중심선/오차 EMA
-        self.speed_kp           = rospy.get_param("~speed_kp", 0.25)           # 속도 PI
-        self.speed_ki           = rospy.get_param("~speed_ki", 0.05)
-        self.debug_viz          = rospy.get_param("~debug_viz", False)         # OpenCV 창 보기(로컬만)
+        # -------- Params --------
+        self.target_speed_kmh = rospy.get_param("~target_speed_kmh", 25.0)
+        self.k_stanley        = rospy.get_param("~k_stanley", 0.6)
+        self.max_steer_rad    = rospy.get_param("~max_steer_rad", 0.6)
+        self.lane_width_m     = rospy.get_param("~lane_width_m", 3.5)
+        self.roi_ratio_top    = rospy.get_param("~roi_ratio_top", 0.5)   # 하단 50%
+        self.hough_threshold  = rospy.get_param("~hough_threshold", 60)
+        self.hough_min_len    = rospy.get_param("~hough_min_len", 60)
+        self.hough_max_gap    = rospy.get_param("~hough_max_gap", 20)
+        self.use_yellow       = rospy.get_param("~use_yellow", True)
+        self.ema_alpha        = rospy.get_param("~ema_alpha", 0.5)
+        self.use_ego_heading  = rospy.get_param("~use_ego_heading", False)  # 기본 False(카메라 기준)
+        self.jpg_quality      = rospy.get_param("~jpg_quality", 70)          # 낮춰서 리소스 절약
 
-        # 상태
-        self.last_center_x      = None
-        self.last_heading_deg   = None
-        self.pix2m_x            = None  # 프레임 하단에서의 m/px
-        self.ey_ema             = 0.0
-        self.epsi_ema           = 0.0
-        self.int_err            = 0.0
-        self.v_mps              = 0.0
-        self.yaw_deg            = 0.0
+        # -------- State --------
+        self.v_mps, self.yaw_deg = 0.0, 0.0
+        self.pix2m_x = None
+        self.ey_ema, self.epsi_ema = 0.0, 0.0
+        self.t0 = rospy.get_time()
+        self.int_err = 0.0
+        self.speed_kp, self.speed_ki = 0.25, 0.05
 
-        # 버퍼
-        self.centerline_hist = deque(maxlen=5)  # 안정화용
+        # -------- Pub/Sub --------
+        self.pub_ctrl = rospy.Publisher("/ctrl_cmd", CtrlCmd, queue_size=1)
+        self.pub_vis  = rospy.Publisher("/lane_vis/compressed", CompressedImage, queue_size=1)
 
-        # ROS I/O
-        self.ctrl_pub = rospy.Publisher("/ctrl_cmd", CtrlCmd, queue_size=1)
-        self.path_pub = rospy.Publisher("/lane_path", Path, queue_size=1)
-        rospy.Subscriber("/image_jpeg/compressed", CompressedImage, self.image_cb, queue_size=1, buff_size=2**22)
+        rospy.Subscriber("/image_jpeg/compressed", CompressedImage, self.image_cb,
+                         queue_size=1, buff_size=2**22)
         rospy.Subscriber("/Ego_topic", EgoVehicleStatus, self.status_cb, queue_size=1)
 
-        rospy.loginfo("[lane_keeper_frontview] ready")
+        rospy.loginfo("[lane_keep_frontview_min_overlay_only] started")
         rospy.spin()
 
-    # ====== 차량 상태 수신 ======
-    def status_cb(self, msg: EgoVehicleStatus):
-        # 속도는 x/y/z로 올 수 있음: m/s
-        vx, vy, vz = msg.velocity.x, msg.velocity.y, msg.velocity.z
-        self.v_mps = float(np.hypot(vx, vy))
-        # heading: 라디안/도 중 모라이는 일반적으로 라디안(환경에 따라 다를 수 있음)
-        # 여기서는 라디안 가정 -> 도로 변환
-        self.yaw_deg = math.degrees(msg.heading) if abs(msg.heading) < 10.0 else msg.heading
+    # ================= Vehicle state =================
+    def status_cb(self, m:EgoVehicleStatus):
+        vx, vy = float(m.velocity.x), float(m.velocity.y)
+        self.v_mps = math.hypot(vx, vy)
 
-    # ====== 메인 콜백 ======
-    def image_cb(self, msg: CompressedImage):
-        # 1) 이미지 복원
-        np_arr = np.frombuffer(msg.data, dtype=np.uint8)
-        frame = cv2.imdecode(np_arr, cv2.IMREAD_COLOR)
-        if frame is None:
+        if not self.use_ego_heading:
             return
-        h, w = frame.shape[:2]
+        hd = float(m.heading)
+        self.yaw_deg = hd if abs(hd) > 6.283185307 else math.degrees(hd)
+        while self.yaw_deg > 180: self.yaw_deg -= 360
+        while self.yaw_deg < -180: self.yaw_deg += 360
 
-        # 2) ROI: 하단 60%
-        y0 = int(h * 0.4)
+    # ================= Perception + Control =================
+    def image_cb(self, msg:CompressedImage):
+        frame = cv2.imdecode(np.frombuffer(msg.data, np.uint8), cv2.IMREAD_COLOR)
+        if frame is None: return
+        H, W = frame.shape[:2]
+
+        # ROI(하단)
+        y0 = int(H * (1.0 - self.roi_ratio_top))
         roi = frame[y0:, :]
         rh, rw = roi.shape[:2]
 
-        # 3) 전처리: 색상 + 에지
+        # --- 1) 실제 차선 픽셀 마스크(= "실제 차선" 표시용) ---
         hsv = cv2.cvtColor(roi, cv2.COLOR_BGR2HSV)
-
-        # 흰색 차선 마스크
-        white = cv2.inRange(hsv, (0, 0, 200), (180, 60, 255))
-
-        # 황색(중앙선) 마스크(선택)
-        yellow = cv2.inRange(hsv, (15, 80, 120), (35, 255, 255)) if self.use_yellow else np.zeros_like(white)
-
+        white  = cv2.inRange(hsv, (0, 0, 200), (180, 60, 255))
+        yellow = cv2.inRange(hsv, (18, 60, 150), (40, 255, 255)) if self.use_yellow else np.zeros_like(white)
         color_mask = cv2.bitwise_or(white, yellow)
 
-        # 에지 보조
-        gray = cv2.cvtColor(roi, cv2.COLOR_BGR2GRAY)
-        edges = cv2.Canny(gray, 80, 160)
-
-        # 통합 바이너리
+        edges = cv2.Canny(cv2.GaussianBlur(cv2.cvtColor(roi, cv2.COLOR_BGR2GRAY),(5,5),0), 70, 150)
         binary = cv2.bitwise_or(color_mask, edges)
+        binary = cv2.morphologyEx(binary, cv2.MORPH_CLOSE, np.ones((5,5), np.uint8), 1)
 
-        # 노이즈 제거
-        kernel = np.ones((5, 5), np.uint8)
-        binary = cv2.morphologyEx(binary, cv2.MORPH_CLOSE, kernel, iterations=1)
+        # --- 2) Hough로 좌/우 차선 모델(y = m x + b) ---
+        lines = cv2.HoughLinesP(binary, 1, np.pi/180, threshold=self.hough_threshold,
+                                minLineLength=self.hough_min_len, maxLineGap=self.hough_max_gap)
+        L, R = None, None
+        if lines is not None:
+            left_lines, right_lines = [], []
+            for (x1,y1,x2,y2) in lines[:,0,:]:
+                if min(y1,y2) < rh*0.15:  # ROI 상단 노이즈 제거
+                    continue
+                dx = x2-x1
+                if dx == 0: continue
+                slope = (y2-y1)/float(dx)  # 이미지: x→우+, y→아래+
+                if slope < -0.3: left_lines.append((x1,y1,x2,y2))
+                elif slope > 0.3: right_lines.append((x1,y1,x2,y2))
+            L = self.fit_weighted_line(left_lines)
+            R = self.fit_weighted_line(right_lines)
 
-        # 4) 좌/우 차선 추출(컨투어 기반)
-        left_pts, right_pts = self.extract_lane_points(binary)
+        # 픽셀-미터 스케일(양쪽 있을 때)
+        lane_pix_width = None
+        if L and R:
+            yb = rh-1
+            xl = self.x_at_y(L, yb); xr = self.x_at_y(R, yb)
+            lane_pix_width = max(1.0, xr - xl)
+            self.pix2m_x = self.lane_width_m / lane_pix_width
+        elif L and not R and self.pix2m_x:
+            yb = rh-1; xl = self.x_at_y(L, yb); xr = xl + self.lane_width_m/self.pix2m_x
+            R = self.line_from_two_points((int(xr), yb), (int(xr-50), max(yb-50,0)))
+        elif R and not L and self.pix2m_x:
+            yb = rh-1; xr = self.x_at_y(R, yb); xl = xr - self.lane_width_m/self.pix2m_x
+            L = self.line_from_two_points((int(xl), yb), (int(xl+50), max(yb-50,0)))
 
-        # 검출 실패 처리
-        if len(left_pts) < self.min_lane_height_px // 2 and len(right_pts) < self.min_lane_height_px // 2:
-            self.publish_safe_stop("[warn] lane lost (both)")
-            return
+        # --- 3) 중심선·오프셋·헤딩(카메라 기준 전방=이미지 아래) ---
+        ey_m, epsi = 0.0, 0.0
+        centers = []
+        if L or R:
+            y_samples = np.arange(int(rh*0.55), rh, 5).astype(int)
+            for yy in y_samples:
+                xs = []
+                if L: xs.append(self.x_at_y(L, yy))
+                if R: xs.append(self.x_at_y(R, yy))
+                if len(xs)==2:
+                    cx = 0.5*(xs[0]+xs[1])
+                elif len(xs)==1 and lane_pix_width:
+                    cx = xs[0] + ( lane_pix_width*0.5 if L else -lane_pix_width*0.5 )
+                else:
+                    continue
+                centers.append((cx, yy))
 
-        # 5) 2차 다항식 피팅 (x = a*y^2 + b*y + c)  ; y는 ROI 좌표(0~rh-1, 아래로 증가)
-        left_fit, right_fit = None, None
-        if len(left_pts) >= 30:
-            left_fit = np.polyfit(left_pts[:,1], left_pts[:,0], 2)  # x=f(y)
-        if len(right_pts) >= 30:
-            right_fit = np.polyfit(right_pts[:,1], right_pts[:,0], 2)
+            if len(centers) >= 2:
+                cx2, cy2 = centers[-1]
+                i1 = max(0, len(centers)-1 - max(3, int(0.2*len(centers))))
+                cx1, cy1 = centers[i1]
 
-        # 6) 중심선 구성
-        ys = np.arange(0, rh, 5, dtype=np.float32)
-        left_xs  = self.eval_poly(left_fit, ys)  if left_fit  is not None else None
-        right_xs = self.eval_poly(right_fit, ys) if right_fit is not None else None
+                pix2m = self.pix2m_x if self.pix2m_x else 0.02
+                ey_m  = (cx2 - rw*0.5) * pix2m
 
-        # 한쪽만 보일 때 보정: 차선 폭 사용
-        if left_xs is None and right_xs is not None:
-            left_xs = right_xs - (self.lane_width_pixels(right_xs, rh) or 180)
-        if right_xs is None and left_xs is not None:
-            right_xs = left_xs + (self.lane_width_pixels(left_xs, rh) or 180)
+                heading_path = math.atan2((cy2-cy1), (cx2-cx1+1e-6))
+                veh_heading  = math.pi/2 if not self.use_ego_heading else math.radians(self.yaw_deg)
+                epsi = self.wrap_rad(heading_path - veh_heading)
 
-        if left_xs is None or right_xs is None:
-            self.publish_safe_stop("[warn] lane lost (one side & no width)")
-            return
+        # 스무딩
+        self.ey_ema   = self.ema_alpha*ey_m + (1-self.ema_alpha)*self.ey_ema
+        self.epsi_ema = self.ema_alpha*epsi  + (1-self.ema_alpha)*self.epsi_ema
 
-        center_xs = 0.5 * (left_xs + right_xs)
-
-        # 하단에서의 픽셀 간격으로 m/px 추정
-        lw_pix_bottom = float((right_xs[-1] - left_xs[-1]))
-        if lw_pix_bottom > 10:
-            self.pix2m_x = self.lane_width_m / lw_pix_bottom
-
-        # 7) 오프셋/헤딩오차 계산
-        # 차량 중심 픽셀(ROI 좌표계): rw/2
-        cx_pix = center_xs[-1]
-        e_y_pix = (cx_pix - (rw * 0.5))  # 오른쪽이 + (이미지 x 오른쪽 증가)
-        e_y_m = float(e_y_pix * (self.pix2m_x if self.pix2m_x else 0.02))
-
-        # 중심선 기울기 -> 진행방향(이미지 좌표계에서 화면 아래로 y+)의 헤딩
-        # 하단 2점으로 탄젠트
-        y2 = rh - 1
-        y1 = max(rh - 1 - self.look_y_pixels, 0)
-        x2 = float(np.interp(y2, ys, center_xs))
-        x1 = float(np.interp(y1, ys, center_xs))
-        heading_img_rad = math.atan2((y2 - y1), (x2 - x1 + 1e-6))  # 이미지축 기준
-        # 이미지 좌표를 차량 헤딩과 일치하도록 근사 변환: 화면 아래( +y )가 전방
-        path_heading_deg = 90.0 - math.degrees(heading_img_rad)
-
-        # 헤딩 오차(도로 - 차량): 도 단위 -> 라디안
-        e_psi_deg = self.wrap_deg(path_heading_deg - self.yaw_deg)
-        e_psi = math.radians(e_psi_deg)
-
-        # EMA 스무딩
-        self.ey_ema   = self.ema_alpha*e_y_m + (1-self.ema_alpha)*self.ey_ema
-        self.epsi_ema = self.ema_alpha*e_psi + (1-self.ema_alpha)*self.epsi_ema
-
-        # 8) Stanley 조향
+        # --- 4) 제어 (초기 조향/가속 제한) ---
         v = max(self.v_mps, 0.1)
-        delta = self.epsi_ema + math.atan2(self.k_stanley * self.ey_ema, v)
-        delta = max(-self.max_steer_rad, min(self.max_steer_rad, delta))
+        delta = self.epsi_ema + math.atan2(self.k_stanley*self.ey_ema, v)
+        elapsed = rospy.get_time() - self.t0
+        steer_limit = 0.25 if elapsed < 1.0 else self.max_steer_rad
+        delta = float(np.clip(delta, -steer_limit, steer_limit))
+        v_ref = 0.0 if elapsed < 0.5 else (self.target_speed_kmh/3.6)
+        verr  = v_ref - v
+        self.int_err = np.clip(self.int_err + verr*0.02, -5.0, 5.0)
+        accel_cmd = float(np.clip(self.speed_kp*verr + self.speed_ki*self.int_err, -1.0, 1.0))
+        accel, brake = (accel_cmd, 0.0) if accel_cmd>=0 else (0.0, -accel_cmd)
 
-        # 9) 속도 PI 제어
-        v_ref = self.target_speed_kmh / 3.6
-        err = (v_ref - v)
-        self.int_err = np.clip(self.int_err + err * 0.02, -5.0, 5.0)  # 적당한 적분 한계
-        accel_cmd = self.speed_kp * err + self.speed_ki * self.int_err
-        accel_cmd = float(np.clip(accel_cmd, -1.0, 1.0))
+        cmd = CtrlCmd(); cmd.longlCmdType=0; cmd.steering=delta; cmd.accel=accel; cmd.brake=brake
+        self.pub_ctrl.publish(cmd)
 
-        brake = 0.0
-        accel = 0.0
-        if accel_cmd >= 0:
-            accel = accel_cmd
-        else:
-            brake = -accel_cmd
+        # --- 5) 단일 디버그 시각화(검은 배경에 실제차선+검출 오버레이) ---
+        canvas = np.zeros((rh, rw, 3), dtype=np.uint8)
 
-        # 10) 명령 송신
-        cmd = CtrlCmd()
-        cmd.longlCmdType = 0  # Morai 기준: 0=가감속
-        cmd.steering = float(delta)
-        cmd.accel = float(accel)
-        cmd.brake = float(brake)
-        self.ctrl_pub.publish(cmd)
+        # 실제 차선(마스크)을 회색으로 페인트
+        mask_vis = cv2.cvtColor(binary, cv2.COLOR_GRAY2BGR)
+        mask_vis = (mask_vis * 0.6).astype(np.uint8)  # 어둡게
+        canvas = cv2.max(canvas, mask_vis)            # 회색 픽셀로 남김
 
-        # 11) 디버그 Path 게시
-        self.publish_path(center_xs, ys, y0, rw, rh, frame)
+        # 좌/우 차선 직선 모델
+        def draw_line(model, color):
+            if not model: return
+            y1, y2 = int(rh*0.2), rh-2
+            x1 = self.x_at_y(model, y1); x2 = self.x_at_y(model, y2)
+            if x1 is not None and x2 is not None:
+                cv2.line(canvas, (int(x1), y1), (int(x2), y2), color, 3)
 
-        if self.debug_viz:
-            dbg = self.draw_debug(roi, left_xs, right_xs, center_xs, ys, cx_pix)
-            cv2.imshow("lane_debug", dbg)
-            cv2.waitKey(1)
+        draw_line(L, (255,0,0))     # 왼쪽: 파랑
+        draw_line(R, (0,0,255))     # 오른쪽: 빨강
 
-    # ================== 유틸/보조 ==================
-    def extract_lane_points(self, binary):
-        """이진 이미지에서 좌/우 차선 후보 픽셀 반환 (x,y) in ROI coords."""
-        h, w = binary.shape[:2]
-        # 좌우 분할
-        mid = w // 2
-        left_mask  = binary[:, :mid]
-        right_mask = binary[:, mid:]
+        # 중심선(초록 점)
+        for (cx, cy) in centers:
+            cv2.circle(canvas, (int(cx), int(cy)), 3, (0,255,0), -1)
 
-        # y-위치 가중치(하단 가중)
-        ys, xs = np.where(left_mask > 0)
-        left_pts = np.vstack([xs, ys]).T if len(xs) else np.empty((0,2), np.int32)
-        ys, xs = np.where(right_mask > 0)
-        if len(xs):
-            right_pts = np.vstack([xs + mid, ys]).T
-        else:
-            right_pts = np.empty((0,2), np.int32)
+        ok, buf = cv2.imencode(".jpg", canvas, [int(cv2.IMWRITE_JPEG_QUALITY), int(self.jpg_quality)])
+        if ok:
+            m = CompressedImage(); m.header.stamp=rospy.Time.now(); m.format="jpeg"; m.data=np.array(buf).tobytes()
+            self.pub_vis.publish(m)
 
-        # 간단한 샘플링/정리
-        if len(left_pts) > 0:
-            left_pts = left_pts[left_pts[:,1].argsort()]
-        if len(right_pts) > 0:
-            right_pts = right_pts[right_pts[:,1].argsort()]
-        return left_pts, right_pts
-
-    def eval_poly(self, coef, ys):
-        if coef is None:
+    # ================= helpers =================
+    @staticmethod
+    def fit_weighted_line(lines):
+        if not lines: return None
+        xs, ys, ws = [], [], []
+        for x1,y1,x2,y2 in lines:
+            w = math.hypot(x2-x1, y2-y1) + 1e-6
+            xs += [x1, x2]; ys += [y1, y2]; ws += [w, w]
+        xs, ys, ws = np.array(xs), np.array(ys), np.array(ws)
+        X = np.vstack([xs, np.ones_like(xs)]).T
+        W = np.diag(ws)
+        try:
+            m, b = np.linalg.inv(X.T @ W @ X) @ (X.T @ W @ ys)
+            return ("yx", m, b)  # y = m x + b
+        except np.linalg.LinAlgError:
             return None
-        a,b,c = coef
-        return a*ys*ys + b*ys + c
-
-    def lane_width_pixels(self, xs, rh):
-        """하단에서 좌/우 간격이 없을 때 기본 픽셀 폭 추정값(초깃값) 반환."""
-        # 이전 프레임의 pix2m_x 있으면 역으로 추정
-        if self.pix2m_x:
-            return int(self.lane_width_m / self.pix2m_x)
-        # 없으면 대략 화면 폭의 0.28배 정도를 가정(시야/카메라 FOV에 따라 튜닝)
-        return None
-
-    def publish_path(self, center_xs, ys, y0, rw, rh, frame):
-        path = Path()
-        path.header.stamp = rospy.Time.now()
-        path.header.frame_id = "map"  # rviz에서 보려면 고정 프레임에 맞추세요
-
-        # 픽셀→m 변환(로컬 근사): x는 우측+, y는 전방+
-        pix2m = self.pix2m_x if self.pix2m_x else 0.02
-        for y_pix, x_pix in zip(ys, center_xs):
-            # ROI 좌표를 차량 전방 좌표계로 근사 매핑
-            xm = (x_pix - rw*0.5) * pix2m
-            ym = (rh - y_pix) * pix2m  # 아래쪽이 가까움 → 앞쪽으로 변환
-            ps = PoseStamped()
-            ps.header = path.header
-            ps.pose.position.x = ym
-            ps.pose.position.y = xm
-            ps.pose.orientation.w = 1.0
-            path.poses.append(ps)
-        self.path_pub.publish(path)
-
-    def publish_safe_stop(self, why):
-        rospy.logwarn_throttle(1.0, why)
-        # 속도 줄이고 스티어 0
-        cmd = CtrlCmd()
-        cmd.longlCmdType = 0
-        cmd.steering = 0.0
-        cmd.accel = 0.0
-        cmd.brake = 0.2 if self.v_mps > 1.0 else 0.0
-        self.ctrl_pub.publish(cmd)
-
-    def draw_debug(self, roi, left_xs, right_xs, center_xs, ys, cx_pix):
-        out = roi.copy()
-        if left_xs is not None:
-            for y,x in zip(ys.astype(int), left_xs.astype(int)):
-                cv2.circle(out, (x,y), 2, (255,0,0), -1)
-        if right_xs is not None:
-            for y,x in zip(ys.astype(int), right_xs.astype(int)):
-                cv2.circle(out, (x,y), 2, (0,0,255), -1)
-        for y,x in zip(ys.astype(int), center_xs.astype(int)):
-            cv2.circle(out, (x,y), 2, (0,255,0), -1)
-        cv2.line(out, (int(roi.shape[1]*0.5), roi.shape[0]-1),
-                      (int(cx_pix), roi.shape[0]-1), (0,255,255), 2)
-        return out
 
     @staticmethod
-    def wrap_deg(deg):
-        while deg > 180: deg -= 360
-        while deg < -180: deg += 360
-        return deg
+    def x_at_y(model, y):
+        if model is None: return None
+        _, m, b = model
+        if abs(m) < 1e-6: return None
+        return (y - b) / m
+
+    @staticmethod
+    def line_from_two_points(p1, p2):
+        x1,y1 = p1; x2,y2 = p2
+        if x2==x1: return None
+        m = (y2-y1)/float(x2-x1); b = y1 - m*x1
+        return ("yx", m, b)
+
+    @staticmethod
+    def wrap_rad(a):
+        while a >  math.pi: a -= 2*math.pi
+        while a < -math.pi: a += 2*math.pi
+        return a
 
 if __name__ == "__main__":
-    try:
-        LaneKeeperFrontView()
-    except rospy.ROSInterruptException:
-        pass
+    LaneKeepFrontViewMinimal()
 
