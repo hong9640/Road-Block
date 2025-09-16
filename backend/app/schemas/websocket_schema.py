@@ -57,5 +57,5 @@ class CaptureSuccessEvent(BaseModel):
 
 class CatchFailedEvent(BaseModel):
     """추적 실패 이벤트 데이터 모델 (0xFD)"""
-    police_id: int
+    catcher_id: int
     runner_id: int

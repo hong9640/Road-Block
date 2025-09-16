@@ -1,5 +1,5 @@
 # app/routers/websocket_router.py
-# 웹소켓 라우터
+
 from fastapi import APIRouter, WebSocket, WebSocketDisconnect
 import traceback
 import struct
@@ -8,12 +8,12 @@ from typing import Dict, List, Any
 # --- 프로젝트 내부 모듈 import ---
 from app.services import websocket_service
 from app.common.ws_codes import MessageType
-from app.db import AsyncSessionMaker, get_all_vehicles, get_all_events
+from app.db import AsyncSessionMaker, get_all_events, get_all_vehicles
 from app.services.websocket_service import _calculate_hmac
 from app.models.enums import EventStatus, VehicleTypeEnum, PoliceCarStatusEnum
 from app.schemas import websocket_schema
 
-# --- 연결 관리자 클래스 ---
+# --- 연결 관리자 클래스 (변경 없음) ---
 class ConnectionManager:
     """웹소켓 연결을 관리하는 범용 매니저"""
     def __init__(self):
@@ -30,7 +30,6 @@ class ConnectionManager:
             print(f"클라이언트 연결 해제. 총 클라이언트: {len(self.active_connections)}")
 
     async def broadcast(self, message: bytes):
-        # 순회 중 리스트가 변경되어도 안전하도록 리스트의 복사본을 사용
         for connection in list(self.active_connections):
             try:
                 await connection.send_bytes(message)
@@ -40,63 +39,38 @@ class ConnectionManager:
 # --- 전역 매니저 객체 생성 ---
 vehicle_manager = ConnectionManager()
 event_manager = ConnectionManager()
-# 서비스 계층에서 매니저 객체에 접근할 수 있도록 딕셔너리로 묶어 전달
 managers: Dict[str, Any] = {"vehicle": vehicle_manager, "event": event_manager}
 router = APIRouter(tags=["WebSockets"])
-
 
 # ===================================================================
 #               VEHICLE WEBSOCKET (/ws/vehicles)
 # ===================================================================
 
 async def send_initial_vehicle_data(websocket: WebSocket):
-    """새로 연결된 클라이언트에게 DB의 모든 차량 및 관련 정보를 전송합니다."""
+    # 이 함수는 프론트엔드 UI 초기화를 위한 것이므로 id를 사용합니다.
     print("새 클라이언트에게 기존 차량 데이터를 전송합니다.")
     async with AsyncSessionMaker() as db_session:
         all_vehicles = await get_all_vehicles(db_session)
-
-        # 1. 모든 차량의 모든 위치 정보를 수집합니다.
         positions_data = []
         for vehicle in all_vehicles:
             if vehicle.locations:
                 for location in vehicle.locations:
-                    # vehicle_id(uint32), position_x(float32), position_y(float32)
                     positions_data.append(struct.pack('<Iff', vehicle.id, location.position_x, location.position_y))
-
-        # 2. POSITION_BROADCAST_2D 메시지 전체를 구성합니다.
         if positions_data:
-            # message_type(uint8), num_of_vehicles(uint32) 헤더 구성
             header = struct.pack('<BI', MessageType.POSITION_BROADCAST_2D, len(positions_data))
-
-            # 모든 위치 데이터를 하나로 결합합니다.
             packed_positions = b"".join(positions_data)
-
-            # 전체 메시지를 완성합니다. (헤더 + 데이터)
             full_message = header + packed_positions
-
-            # HMAC을 계산하여 메시지에 추가하고 전송합니다.
             await websocket.send_bytes(full_message + _calculate_hmac(full_message))
-
-        # 3. 다른 메시지 타입은 그대로 개별 전송
         for vehicle in all_vehicles:
-            # 차량 기본 정보 전송 (0xA2)
             car_name_padded = vehicle.car_name.encode('utf-8').ljust(10, b'\x00')
             vehicle_type_int = 0 if vehicle.vehicle_type == VehicleTypeEnum.POLICE else 1
             reg_header = struct.pack('<BIIB10s', MessageType.EVENT_VEHICLE_REGISTERED, vehicle.id, vehicle.vehicle_id, vehicle_type_int, car_name_padded)
             await websocket.send_bytes(reg_header + _calculate_hmac(reg_header))
-
-            # 경찰차 상태 정보 전송 (0xD0)
             if vehicle.vehicle_type == VehicleTypeEnum.POLICE and vehicle.police_car:
-                police_status = vehicle.police_car
-                status_map = {
-                    PoliceCarStatusEnum.NORMAL: 0,
-                    PoliceCarStatusEnum.HALF_DESTROYED: 1,
-                    PoliceCarStatusEnum.COMPLETE_DESTROYED: 2,
-                }
-                status_int = status_map.get(police_status.status, 0)
-                status_header = struct.pack('<BIBBB', MessageType.STATE_UPDATE, vehicle.id, police_status.collision_count, status_int, police_status.fuel)
+                status_map = {p_status: i for i, p_status in enumerate(PoliceCarStatusEnum)}
+                status_int = status_map.get(vehicle.police_car.status, 0)
+                status_header = struct.pack('<BIBBB', MessageType.STATE_UPDATE, vehicle.id, vehicle.police_car.collision_count, status_int, vehicle.police_car.fuel)
                 await websocket.send_bytes(status_header + _calculate_hmac(status_header))
-
     print(f"기존 차량 데이터(위치, 상태 포함) 전송 완료: 총 {len(all_vehicles)}대")
 
 @router.websocket("/ws/vehicles")
@@ -107,9 +81,8 @@ async def unified_vehicle_websocket(websocket: WebSocket):
         while True:
             data = await websocket.receive_bytes()
             data_len = len(data)
-
             if data_len == 32:
-                ros_response, front_event = await websocket_service.handle_vehicle_registration(data)
+                ros_response, front_event = await websocket_service.handle_vehicle_registration(data, managers)
                 if ros_response: await websocket.send_bytes(ros_response)
                 if front_event: await vehicle_manager.broadcast(front_event)
             elif data_len == 28:
@@ -122,7 +95,6 @@ async def unified_vehicle_websocket(websocket: WebSocket):
             else:
                 print(f"[/ws/vehicles] 정의되지 않은 길이의 패킷 수신: {data_len} bytes.")
     except (WebSocketDisconnect, RuntimeError):
-        print("클라이언트 연결이 끊어져 작업을 중단합니다.")
         vehicle_manager.disconnect(websocket)
     except Exception as e:
         print(f"[/ws/vehicles] 처리되지 않은 웹소켓 에러 발생: {e}")
@@ -132,38 +104,42 @@ async def unified_vehicle_websocket(websocket: WebSocket):
 # ===================================================================
 #                 EVENT WEBSOCKET (/ws/events)
 # ===================================================================
+
 async def send_initial_event_data(websocket: WebSocket):
+    """
+    ✨ 여기가 수정된 부분입니다.
+    과거 이벤트 목록은 실시간 이벤트와 동일하게 vehicle_id를 사용해야 일관성이 유지됩니다.
+    """
     print("새 클라이언트에게 기존 이벤트 데이터를 전송합니다.")
     async with AsyncSessionMaker() as db_session:
         all_events = await get_all_events(db_session)
         for event in all_events:
             binary_packet = None
-            # catcher 또는 runner가 없는 이벤트는 건너뜁니다 (DB 데이터 정합성)
-            if not event.catcher or not event.runner:
-                continue
+            if not hasattr(event, 'runner') or not event.runner: continue
             
             # 검거 성공 이벤트 (0xFE)
-            if event.status == EventStatus.CATCH:
+            if event.status == EventStatus.CATCH and hasattr(event, 'catcher') and event.catcher:
+                # ✨ FIX: 임베디드와의 호환성을 위해 vehicle_id 사용
                 event_model = websocket_schema.CaptureSuccessEvent(
-                    catcher_id=event.catcher_id, 
-                    runner_id=event.runner_id
+                    catcher_id=event.catcher.id, 
+                    runner_id=event.runner.id
                 )
                 binary_packet = websocket_service.create_capture_success_packet(event_model)
             
             # 검거 실패 이벤트 (0xFD)
-            elif event.status == EventStatus.FAILED:
-                # `0xFD` 메시지에도 catcher_id와 runner_id가 모두 필요합니다. 
+            elif event.status == EventStatus.FAILED and hasattr(event, 'catcher') and event.catcher:
+                # ✨ FIX: 임베디드와의 호환성을 위해 vehicle_id 사용
                 event_model = websocket_schema.CatchFailedEvent(
-                    catcher_id=event.catcher_id, 
-                    runner_id=event.runner_id
+                    police_id=event.catcher.id, 
+                    runner_id=event.runner.id
                 )
                 binary_packet = websocket_service.create_catch_failed_packet(event_model)
 
-            # 검거 시작 이벤트 (0xF0)
+            # 추적 시작 이벤트 (0xF0)
             elif event.status == EventStatus.RUN:
-                # `0xFD` 메시지에도 catcher_id와 runner_id가 모두 필요합니다. 
+                # ✨ FIX: 임베디드와의 호환성을 위해 vehicle_id 사용
                 event_model = websocket_schema.StartTrackingEvent(
-                    runner_id=event.runner_id
+                    runner_id=event.runner.id
                 )
                 binary_packet = websocket_service.create_start_tracking_packet(event_model)
 
@@ -179,6 +155,7 @@ async def unified_event_websocket(websocket: WebSocket):
         await send_initial_event_data(websocket)
         while True:
             data = await websocket.receive_bytes()
+            await websocket_service.handle_incoming_event(data, managers)
     except (WebSocketDisconnect, RuntimeError):
         event_manager.disconnect(websocket)
     except Exception as e:
