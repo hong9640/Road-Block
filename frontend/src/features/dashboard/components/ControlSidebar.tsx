@@ -1,4 +1,4 @@
-import { logsData, mapsData } from "@/__mocks__";
+import { mapsData } from "@/__mocks__";
 import type { DashboardContext } from "@/components/DashboardLayout";
 import { Menu, X } from "lucide-react";
 import { useNavigate } from "react-router-dom";
@@ -6,25 +6,38 @@ import LogListItem from "./LogListItem";
 import VehicleListItem from "./VehicleListItem";
 import { useEffect } from "react";
 import { useVehicleStore } from "@/stores/useVehicleStore";
-import { getVehicleListAPI } from "@/Apis";
+import { getEventListAPI, getVehicleListAPI } from "@/Apis";
+import { useEventStore } from "@/stores/useEventStore";
 
 export default function ControlSideBar({
   isOpen,
   setIsOpen,
 }: DashboardContext) {
   const nav = useNavigate();
+
   const activeCars = useVehicleStore((s) => s.activeCars);
+  const events = useEventStore((s) => s.events);
+
   const getCars = useVehicleStore((s) => s.getCars);
+  const getEvents = useEventStore((s) => s.getEvents);
 
   useEffect(() => {
     const fetchCars = async () => {
-      const list = await getVehicleListAPI();
+      const carList = await getVehicleListAPI();
 
-      getCars(list);
+      getCars(carList);
+    };
+
+    const fetchEvents = async () => {
+      const logList = await getEventListAPI();
+
+      console.log(logList);
+      getEvents(logList);
     };
 
     fetchCars();
-  }, []);
+    fetchEvents();
+  }, [getCars, getEvents]);
 
   return (
     <div className="flex h-screen">
@@ -67,12 +80,15 @@ export default function ControlSideBar({
                 ))}
             </li>
             <li>
-              <div className="block">
-                <a href="/logs" className="block p-2 mb-2 hover:bg-gray-700">
-                  <div>사건 기록</div>
-                </a>
+              <div
+                className="block p-2 mb-2 hover:bg-gray-700"
+                onClick={() => {
+                  nav("logs");
+                }}
+              >
+                <div>사건 기록</div>
               </div>
-              {logsData.slice(0, 3).map((log) => (
+              {events.slice(0, 3).map((log) => (
                 <LogListItem key={log.id} log={log} />
               ))}
             </li>

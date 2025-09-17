@@ -1,4 +1,4 @@
-import type { Log, Status } from "@/types";
+import type { Log, RunnerStatus } from "@/types";
 import { formatDateYYYYMMDD, formatTimeHHMMSS } from "@/utils/timeformat";
 import clsx from "clsx";
 
@@ -6,15 +6,15 @@ interface EventRowProps {
   log: Log;
 }
 
-function handleStatus(event: Status, catcher?: number, runner?: number) {
+function handleStatus(event: RunnerStatus, catcher?: number | null, runner?: number) {
   switch (event) {
-    case "RUN":
+    case "run":
       return {
         style: "bg-yellow-100",
         eventWord: "추적 시작",
-        detail: `${catcher}번 경찰차가 ${runner}번 도주 차량 추격을 시작했습니다.`,
+        detail: `${runner}번 도주 차량 추격을 시작했습니다.`,
       };
-    case "CATCH":
+    case "catch":
       return {
         style: "bg-green-100",
         eventWord: "검거 완료",

@@ -1,7 +1,7 @@
 // Business Types
 export type VehicleType = "police" | "runner";
 export type DamageLevel = "normal" | "half_destroyed" | "complete_destroyed";
-export type RunnerStatus = "RUN" | "CATCH";
+export type RunnerStatus = "run" | "catch";
 
 export interface Vehicle {
   id: number;
@@ -24,7 +24,7 @@ export interface CarPosition {
 
 export interface Log {
   id: number;
-  catcher_id: number;
+  catcher_id: number | null;
   runner_id: number;
   status: RunnerStatus;
   created_at: string; // ISO 8601

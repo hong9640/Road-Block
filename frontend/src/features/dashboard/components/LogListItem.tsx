@@ -8,12 +8,12 @@ interface LogListItemProps {
 
 function eventBrief(event: RunnerStatus) {
   switch (event) {
-    case "RUN":
+    case "run":
       return {
         style: "bg-yellow-100",
         eventWord: "도주차 추적 시작",
       };
-    case "CATCH":
+    case "catch":
       return {
         style: "bg-green-100",
         eventWord: "도주차 검거",

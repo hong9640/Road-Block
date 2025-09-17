@@ -23,8 +23,8 @@ type Props = {
 };
 
 const mappedUrl = [
-  { url: "/ws/vehicles", handler: onVehicle },
-  { url: "/ws/events", handler: onEvent },
+  { url: "/ws/front/vehicles", handler: onVehicle },
+  { url: "/ws/front/events", handler: onEvent },
 ];
 
 export function WSProvider({ children, blockUntilOpen = false }: Props) {
