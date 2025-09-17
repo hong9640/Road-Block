@@ -1,4 +1,5 @@
 from fastapi import HTTPException, status
+from pydantic import ValidationError
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlmodel import select
 from sqlalchemy.orm import selectinload
@@ -64,11 +65,23 @@ async def get_all_vehicle_events(db: AsyncSession) -> List[EventResponse]:
     statement = (
         select(models.Event)
         .order_by(models.Event.created_at.desc())
-        .options(
-            selectinload(models.Event.runner),
-            selectinload(models.Event.catcher) # catcher 정보도 함께 로딩
-        )
+        .options(selectinload(models.Event.runner), selectinload(models.Event.catcher))
     )
     result = await db.execute(statement)
     events = result.scalars().all()
-    return [EventResponse.model_validate(event) for event in events]
+
+    # 💡 변경점: model_validate 대신 수동으로 리스트를 생성합니다.
+    response_events = []
+    for event in events:
+        response_events.append(
+            EventResponse(
+                # DB 객체의 'event_id'를 스키마의 'event_id' 필드에 명시적으로 전달
+                id=event.event_id, 
+                catcher_id=event.catcher_id,
+                runner_id=event.runner_id,
+                status=event.status,
+                created_at=event.created_at
+            )
+        )
+    
+    return response_events

@@ -32,7 +32,7 @@ class VehicleUpdate(BaseModel):
     car_name: str = Field(..., max_length=50, example="Police-03")
 
 class EventResponse(BaseModel):
-    event_id: int
+    id: int
     catcher_id: Optional[int] = None
     runner_id: int
     status: enums.EventStatus
@@ -41,6 +41,5 @@ class EventResponse(BaseModel):
     class Config:
         from_attributes = True
 
-# 💡 변경점 2: 라우터의 response_model에 맞는 최종 응답 모델 정의
 class VehicleEventListResponse(BaseModel):
     events: List[EventResponse]
