@@ -2,6 +2,7 @@ from fastapi import HTTPException, status
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlmodel import select
 from sqlalchemy.orm import selectinload
+from sqlalchemy import desc
 import logging
 from typing import List
 
@@ -62,6 +63,7 @@ async def get_all_vehicle_events(db: AsyncSession) -> List[EventResponse]:
     """모든 차량 이벤트 로그를 조회합니다."""
     statement = (
         select(models.Event)
+        .order_by(models.Event.created_at.desc())
         .options(
             selectinload(models.Event.runner),
             selectinload(models.Event.catcher) # catcher 정보도 함께 로딩
