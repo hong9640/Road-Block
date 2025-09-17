@@ -15,7 +15,7 @@ HMAC_SECRET_KEY_STR = os.getenv("HMAC_SECRET_KEY")
 VEHICLE_ID = 123 
 
 # 업데이트할 상태 값
-FUEL = 85           # 현재 연료량 (0-100)
+FUEL = 60        # 현재 연료량 (0-100)
 COLLISION_COUNT = 2 # 누적 충돌 횟수
 STATUS_ENUM = 1     # 차량 상태 (0: NORMAL, 1: HALF_DESTROYED, 2: COMPLETE_DESTROYED)
 # ---------------------------------------------

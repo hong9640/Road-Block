@@ -1,3 +1,5 @@
+# create_dummy_data.py
+
 import struct
 import hmac
 import hashlib
@@ -12,15 +14,19 @@ load_dotenv()
 HMAC_SECRET_KEY_STR = os.getenv("HMAC_SECRET_KEY")
 
 # 위치를 업데이트할 차량의 고유 ID (이전에 등록한 도둑 차량의 ID)
-VEHICLE_ID = 9901 
+VEHICLE_ID = 123
 
 # 업데이트할 새로운 X, Y 좌표
 POSITION_X = 125.001
-POSITION_Y = 30.502
+POSITION_Y = 20.502
 # ---------------------------------------------
 
+# --- 💡 수정된 부분: 패킷 구조 정의 ---
+# 메시지 타입 (0x13: 위치 정보 브로드캐스트)
+MESSAGE_TYPE = 0x13
+
 def generate_location_packet():
-    """차량 위치 업데이트를 위한 바이너리 패킷을 생성합니다."""
+    """차량 위치 업데이트(0x13)를 위한 바이너리 패킷을 생성합니다."""
 
     if not HMAC_SECRET_KEY_STR:
         print("🛑 에러: .env 파일에 HMAC_SECRET_KEY가 없거나 파일이 존재하지 않습니다.")
@@ -28,21 +34,23 @@ def generate_location_packet():
 
     HMAC_SECRET_KEY = HMAC_SECRET_KEY_STR.encode('utf-8')
 
-    # 1. HMAC을 제외한 앞부분 데이터를 패킹합니다. (총 12바이트)
+    # 1. 💡 수정된 부분: HMAC을 제외한 앞부분 데이터를 패킹합니다. (총 13바이트)
     # < : Little-endian
+    # B : unsigned char (1 byte) - 메시지 타입 ✨
     # I : unsigned int (4 bytes) - 차량 ID
     # f : float (4 bytes) - X 좌표
     # f : float (4 bytes) - Y 좌표
-    header_data = struct.pack('<Iff', VEHICLE_ID, POSITION_X, POSITION_Y)
+    header_data = struct.pack('<BIff', MESSAGE_TYPE, VEHICLE_ID, POSITION_X, POSITION_Y)
 
     # 2. 생성된 헤더 데이터를 기반으로 HMAC 인증 코드를 계산합니다.
     hmac_code = hmac.new(HMAC_SECRET_KEY, header_data, hashlib.sha256).digest()[:16]
 
-    # 3. 헤더 데이터와 HMAC 코드를 합쳐 최종 패킷을 완성합니다. (총 28바이트)
+    # 3. 💡 수정된 부분: 헤더 데이터와 HMAC 코드를 합쳐 최종 패킷을 완성합니다. (총 29바이트)
     full_packet = header_data + hmac_code
 
     print("✅ 위치 업데이트 패킷 생성 완료!")
     print("-" * 30)
+    print(f"  - 메시지 타입: {hex(MESSAGE_TYPE)}")
     print(f"  - 차량 ID: {VEHICLE_ID}")
     print(f"  - 좌표: X={POSITION_X}, Y={POSITION_Y}")
     print(f"  - 최종 패킷 길이: {len(full_packet)} bytes")

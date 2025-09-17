@@ -1,3 +1,5 @@
+# create_dummy_event.py
+
 import struct
 import hmac
 import hashlib
@@ -11,6 +13,9 @@ load_dotenv()
 # .env 파일에서 HMAC 시크릿 키를 불러옵니다.
 HMAC_SECRET_KEY_STR = os.getenv("HMAC_SECRET_KEY")
 
+# 💡 수정된 부분: "success" 또는 "failure"를 선택하여 패킷 타입을 변경
+EVENT_TYPE = "success"  # "success" 또는 "failure"
+
 # 잡은 경찰차의 고유 ID (요청하신 값)
 CATCHER_ID = 123 
 
@@ -18,12 +23,8 @@ CATCHER_ID = 123
 RUNNER_ID = 9901
 # ---------------------------------------------
 
-# --- 패킷 구조 정의 ---
-# 메시지 타입 (0xFE: 검거 성공)
-MESSAGE_TYPE = 0xFE
-
 def generate_catch_packet():
-    """검거 성공 이벤트를 위한 바이너리 패킷을 생성합니다."""
+    """검거 성공(0xFE) 또는 실패(0xFD) 이벤트를 위한 바이너리 패킷을 생성합니다."""
 
     if not HMAC_SECRET_KEY_STR:
         print("🛑 에러: .env 파일에 HMAC_SECRET_KEY가 없거나 파일이 존재하지 않습니다.")
@@ -31,11 +32,22 @@ def generate_catch_packet():
 
     HMAC_SECRET_KEY = HMAC_SECRET_KEY_STR.encode('utf-8')
 
+    # 💡 수정된 부분: EVENT_TYPE 설정에 따라 메시지 타입을 결정
+    if EVENT_TYPE == "success":
+        MESSAGE_TYPE = 0xFE
+        event_name = "성공"
+    elif EVENT_TYPE == "failure":
+        MESSAGE_TYPE = 0xFD
+        event_name = "실패"
+    else:
+        print(f"🛑 에러: EVENT_TYPE은 'success' 또는 'failure'여야 합니다. (현재 값: '{EVENT_TYPE}')")
+        return
+
     # 1. HMAC을 제외한 앞부분 데이터를 패킹합니다. (총 9바이트)
     # < : Little-endian
     # B : unsigned char (1 byte) - 메시지 타입
-    # I : unsigned int (4 bytes) - 잡은 경찰차 ID
-    # I : unsigned int (4 bytes) - 잡힌 도둑차 ID
+    # I : unsigned int (4 bytes) - 경찰차 ID
+    # I : unsigned int (4 bytes) - 도둑차 ID
     header_data = struct.pack('<BII', MESSAGE_TYPE, CATCHER_ID, RUNNER_ID)
 
     # 2. 생성된 헤더 데이터를 기반으로 HMAC 인증 코드를 계산합니다.
@@ -44,8 +56,9 @@ def generate_catch_packet():
     # 3. 헤더 데이터와 HMAC 코드를 합쳐 최종 패킷을 완성합니다. (총 25바이트)
     full_packet = header_data + hmac_code
 
-    print("✅ 검거 성공 패킷 생성 완료!")
+    print(f"✅ 검거 {event_name} 패킷 생성 완료!")
     print("-" * 30)
+    print(f"  - 메시지 타입: {hex(MESSAGE_TYPE)}")
     print(f"  - Catcher ID: {CATCHER_ID}")
     print(f"  - Runner ID: {RUNNER_ID}")
     print(f"  - 최종 패킷 길이: {len(full_packet)} bytes")

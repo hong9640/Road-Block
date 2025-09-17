@@ -70,11 +70,15 @@ async def create_db_and_tables():
 async def get_vehicle_by_ros_id(session: AsyncSession, ros_id: int) -> Vehicle | None:
     """
     ROS ID(vehicle_id)를 사용하여 특정 Vehicle 객체를 반환합니다.
-    이때 연관된 police_car 정보도 함께 '즉시 로딩'합니다.
+    이때 연관된 police_car, caught_events, run_events 정보도 함께 '즉시 로딩'합니다.
     """
     statement = (
         select(Vehicle)
-        .options(selectinload(Vehicle.police_car))
+        .options(
+            selectinload(Vehicle.police_car),
+            selectinload(Vehicle.caught_events), 
+            selectinload(Vehicle.run_events)
+        )
         .where(Vehicle.vehicle_id == ros_id)
     )
     result = await session.execute(statement)
