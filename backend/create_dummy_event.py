@@ -13,8 +13,8 @@ load_dotenv()
 # .env 파일에서 HMAC 시크릿 키를 불러옵니다.
 HMAC_SECRET_KEY_STR = os.getenv("HMAC_SECRET_KEY")
 
-# 💡 수정된 부분: "success" 또는 "failure"를 선택하여 패킷 타입을 변경
-EVENT_TYPE = "success"  # "success" 또는 "failure"
+
+EVENT_TYPE = "CATCH"  
 
 # 잡은 경찰차의 고유 ID (요청하신 값)
 CATCHER_ID = 123 
@@ -33,10 +33,10 @@ def generate_catch_packet():
     HMAC_SECRET_KEY = HMAC_SECRET_KEY_STR.encode('utf-8')
 
     # 💡 수정된 부분: EVENT_TYPE 설정에 따라 메시지 타입을 결정
-    if EVENT_TYPE == "success":
+    if EVENT_TYPE == "CATCH":
         MESSAGE_TYPE = 0xFE
         event_name = "성공"
-    elif EVENT_TYPE == "failure":
+    elif EVENT_TYPE == "FAILED":
         MESSAGE_TYPE = 0xFD
         event_name = "실패"
     else:

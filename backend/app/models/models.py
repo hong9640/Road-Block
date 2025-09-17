@@ -76,6 +76,7 @@ class Vehicle(SQLModel, table=True):
         sa_column_kwargs={"server_default": text("now()")},
         nullable=False
     )
+    deleted_at: Optional[datetime] = Field(default=None)
     
     # --- Relationships ---
     locations: List["VehicleLocation"] = Relationship(back_populates="vehicle")
