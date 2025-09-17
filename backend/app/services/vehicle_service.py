@@ -2,6 +2,7 @@ from fastapi import HTTPException, status
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlmodel import select
 from sqlalchemy.orm import selectinload
+import logging
 from typing import List
 
 # Corrected import path as per user request
@@ -58,23 +59,14 @@ async def delete_vehicle_by_id(db: AsyncSession, id: int) -> None:
     return
 
 async def get_all_vehicle_events(db: AsyncSession) -> List[EventResponse]:
-    """
-    Retrieves all vehicle event logs, denormalizing the data for the response.
-    """
-    statement = select(models.Event).options(selectinload(models.Event.runner))
+    """모든 차량 이벤트 로그를 조회합니다."""
+    statement = (
+        select(models.Event)
+        .options(
+            selectinload(models.Event.runner),
+            selectinload(models.Event.catcher) # catcher 정보도 함께 로딩
+        )
+    )
     result = await db.execute(statement)
     events = result.scalars().all()
-
-    response_events = []
-    for event in events:
-        if event.runner:
-            response_events.append(
-                EventResponse(
-                    id=event.runner.vehicle_id,
-                    car_name=event.runner.car_name,
-                    vehicle_type=event.runner.vehicle_type,
-                    status=event.status,
-                    timestamp=event.created_at,
-                )
-            )
-    return response_events
+    return [EventResponse.model_validate(event) for event in events]
