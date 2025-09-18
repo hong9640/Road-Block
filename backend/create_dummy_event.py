@@ -14,7 +14,7 @@ load_dotenv()
 HMAC_SECRET_KEY_STR = os.getenv("HMAC_SECRET_KEY")
 
 
-EVENT_TYPE = "CATCH"  
+EVENT_TYPE = "Run"  
 
 # 잡은 경찰차의 고유 ID (요청하신 값)
 CATCHER_ID = 123 

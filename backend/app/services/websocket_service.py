@@ -113,8 +113,9 @@ async def handle_location_update(data: bytes) -> HandlerResult:
 
         ros_broadcast_event = None
         if vehicle.vehicle_type == VehicleTypeEnum.RUNNER:
-            ros_loc_header = struct.pack('<Iff', vehicle.vehicle_id, pos_x, pos_y)
+            ros_loc_header = struct.pack('<BIff', MessageType.TARGET_POSITION_BROADCAST, vehicle.vehicle_id, pos_x, pos_y)
             ros_broadcast_event = ros_loc_header + _calculate_hmac(ros_loc_header)
+            logging.info(f"[BCAST->ROS] 도둑 차량 위치 전파: {ros_broadcast_event.hex()}")
         
         return (None, front_event, ros_broadcast_event)
 
