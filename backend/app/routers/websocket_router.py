@@ -6,9 +6,12 @@ from typing import List
 from fastapi import APIRouter, WebSocket, WebSocketDisconnect
 
 # --- 프로젝트 내부 모듈 ---
+from sqlalchemy import select
+from sqlalchemy.orm import selectinload
+from app.models import models
 from app.common.ws_codes import MessageType
 from app.db import AsyncSessionMaker, get_all_vehicles
-from app.models.enums import VehicleTypeEnum, PoliceCarStatusEnum
+from app.models.enums import VehicleTypeEnum, PoliceCarStatusEnum, EventStatus
 from app.services import websocket_service
 from app.services.websocket_service import _calculate_hmac
 
@@ -99,6 +102,43 @@ async def send_initial_vehicle_data(websocket: WebSocket):
                 await websocket.send_bytes(status_header + _calculate_hmac(status_header))
     print(f"기존 차량 데이터(위치, 상태 포함) 전송 완료: 총 {len(all_vehicles)}대")
 
+async def send_initial_event_data(websocket: WebSocket):
+    """
+    새로운 프론트엔드 클라이언트에게 DB의 모든 과거 이벤트 데이터를 전송합니다.
+    """
+    print("새 클라이언트에게 기존 이벤트 데이터를 전송합니다.")
+    async with AsyncSessionMaker() as db_session:
+        # 1. DB에서 모든 이벤트를 조회합니다. (N+1 문제를 피하기 위해 runner와 catcher 정보를 함께 로딩)
+        statement = select(models.Event).options(
+            selectinload(models.Event.runner),
+            selectinload(models.Event.catcher)
+        ).order_by(models.Event.created_at) # 시간 순으로 보내기 위해 정렬
+        
+        result = await db_session.execute(statement)
+        all_events = result.scalars().all()
+
+        # 2. 각 이벤트를 순회하며 상태에 맞는 바이너리 패킷을 생성하여 전송합니다.
+        for event in all_events:
+            header_packet = None
+            
+            # --- 추적 시작 이벤트 (RUN) ---
+            if event.status == EventStatus.RUN and event.runner:
+                # 프론트엔드용 추적 시작 이벤트 타입은 0xF0 입니다.
+                # runner.id는 DB의 PK id를 사용합니다.
+                header_packet = struct.pack('<BI', MessageType.EVENT_TRACE_START, event.runner.id)
+            # --- 검거 성공 이벤트 (CATCH) ---
+            elif event.status == EventStatus.CATCH and event.catcher and event.runner:
+                header_packet = struct.pack('<BII', MessageType.EVENT_CATCH, event.catcher.id, event.runner.id)
+            # --- 검거 실패 이벤트 (FAILED) ---
+            elif event.status == EventStatus.FAILED and event.catcher and event.runner:
+                header_packet = struct.pack('<BII', MessageType.EVENT_CATCH_FAILED, event.catcher.id, event.runner.id)
+            
+            # 3. 생성된 패킷이 있으면 HMAC을 추가하여 전송합니다.
+            if header_packet:
+                await websocket.send_bytes(header_packet + _calculate_hmac(header_packet))
+                
+    print(f"기존 이벤트 데이터 전송 완료: 총 {len(all_events)}건")
+
 @router.websocket("/ws/front/vehicles")
 async def websocket_front_vehicles(websocket: WebSocket):
     """프론트엔드 차량 정보용 웹소켓 (초기 데이터 수신 후, 실시간 업데이트 대기)"""
@@ -122,7 +162,7 @@ async def websocket_front_events(websocket: WebSocket):
     await event_manager.connect_front(websocket)
     try:
         # 1. 연결 직후, UI 초기 구성을 위해 DB의 모든 이벤트 데이터를 전송
-        await send_initial_vehicle_data(websocket)
+        await send_initial_event_data(websocket)
 
         # 2. 프론트엔드는 메시지를 보내지 않으므로, 연결을 유지하며 수신만 대기
         while True:
