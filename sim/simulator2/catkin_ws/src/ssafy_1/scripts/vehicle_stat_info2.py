@@ -46,18 +46,19 @@ def _hmac16(data: bytes) -> bytes:
 # -----------------------------
 def build_status_packet(message_type: int,
                         vehicle_id: int,
+                        fuel: int,
                         collision_count: int,
-                        status_enum: int,
-                        fuel: int) -> bytes:
+                        status_enum: int) -> bytes:
     """
     상태 패킷 (총 24B)
-    [0]  u8  : message_type (0x12)
-    [1-4] u32 LE : vehicle_id
-    [5]  u8  : fuel (0-100)
-    [6]  u8  : collision_count
-    [7]  u8  : status_enum (0 NORMAL,1 HALF,2 COMPLETE)
-    [8-23] 16B : HMAC([0:8])
+    [0]   u8  : message_type (0x12)
+    [1-4] u32 LE: vehicle_id
+    [5]   u8  : fuel (0-100)
+    [6]   u8  : collision_count
+    [7]   u8  : status_enum (0 NORMAL,1 HALF,2 COMPLETE)
+    [8-23] 16B: HMAC([0:8])
     """
+    # 패킹 순서: message_type, vehicle_id, fuel, collision_count, status_enum
     header8 = struct.pack("<BIBBB", message_type, vehicle_id, fuel, collision_count, status_enum)
     return header8 + _hmac16(header8)  # => 8 + 16 = 24B
 
@@ -150,19 +151,16 @@ class VehicleStatusSender:
         VehicleCollisionData:
         collisions: [] 또는 [{ crashed_vehicles: [...] }, ...]
         """
-        # 기본 수신 로그
         try:
             seq = getattr(msg.header, "seq", -1)
         except Exception:
             seq = -1
 
-        # raw 충돌 여부
         try:
             has_collision_raw = hasattr(msg, "collisions") and (msg.collisions is not None) and (len(msg.collisions) > 0)
         except Exception:
             has_collision_raw = False
 
-        # 디바운스 적용
         now_ts = time()
         if has_collision_raw:
             self._collision_last_seen_ts = now_ts
@@ -173,45 +171,21 @@ class VehicleStatusSender:
             else:
                 has_collision = False
 
-        # 상세 디버그: 충돌 페어/차량 id/이름
-        #if has_collision_raw:
-        #    try:
-        #        pairs = len(msg.collisions)
-        #        first_pair = msg.collisions[0]
-        #        vlist = getattr(first_pair, "crashed_vehicles", [])
-        #        ids = []
-        #        names = []
-        #        for v in vlist:
-        #            vid = getattr(v, "unique_id", -1)
-        #            vname = getattr(v, "name", "")
-        #            ids.append(vid)
-        #            names.append(vname)
-        #         rospy.loginfo(f"[Collision RX] seq={seq} pairs={pairs} first_pair_vehicles={len(vlist)} ids={ids} names={names}")
-        #    except Exception as e:
-        #         rospy.logwarn(f"[Collision RX] seq={seq} parse warn: {e}")
-        #else:
-            #rospy.loginfo(f"[Collision RX] seq={seq} collisions=[]")
-
-        # 상승 에지에서만 카운트 증가
         if has_collision and not self.in_collision:
             self.collision_count = min(self.collision_count + 1, 255)
             rospy.loginfo(f"[StatusSender] Collision RISING edge -> count={self.collision_count}")
 
-            # 충돌 이벤트 패킷(22B) 전송
             vehicle_id = (self.vehicle_id_override or self.vehicle_id) & 0xFFFFFFFF
             evt_pkt = build_collision_packet(0x13, vehicle_id, int(self.collision_count) & 0xFF)
             evt_url = f"{self.base_url}/{vehicle_id}/collision"
             self._send_ws_binary(evt_url, evt_pkt, tag="collision")
 
-        # 하강 에지 로그(선택)
         if (not has_collision) and self.in_collision:
             rospy.loginfo(f"[StatusSender] Collision FALLING edge")
 
-        # 상태 갱신
         self.in_collision = has_collision
 
     def timer_check_fuel(self, _evt):
-        """연료 감소 판단(이동 시에만 감소)"""
         if not self.latest_status:
             return
         x = self.latest_status.position.x
@@ -227,7 +201,8 @@ class VehicleStatusSender:
         self.pos_at_last_check = (x, y)
 
     def timer_maybe_send_status(self, _evt):
-        if not self.latest_status:
+        if not self.latest_status or self.vehicle_id == 0:
+            rospy.loginfo_throttle(5.0, "[StatusSender] 유효한 차량 ID를 기다리는 중...")
             return
 
         vehicle_id = (self.vehicle_id_override or self.vehicle_id) & 0xFFFFFFFF
@@ -241,11 +216,11 @@ class VehicleStatusSender:
             pkt = build_status_packet(
                 message_type=0x12,
                 vehicle_id=vehicle_id,
+                fuel=current[0],
                 collision_count=current[1],
-                status_enum=current[2],
-                fuel=current[0]
+                status_enum=current[2]
             )
-            url = f"{self.base_url}/{vehicle_id}/status"
+            url = self.base_url
             self._send_ws_binary(url, pkt, tag="status")
             self._last_sent = current
             self._last_sent_ts = now_ts
@@ -256,17 +231,6 @@ class VehicleStatusSender:
         try:
             ws = websocket.create_connection(url, timeout=3)
             ws.send_binary(pkt)
-            #rospy.loginfo(f"[WS TX] {tag} -> {url} | {len(pkt)}B | head_hex={bhex(pkt[:12])}")
-            # 응답 수신 시도(텍스트/바이너리)
-            ws.settimeout(1.0)
-            #try:
-            #    resp = ws.recv()
-            #    if isinstance(resp, (bytes, bytearray)):
-            #        rospy.loginfo(f"[WS RX] {tag} <- {len(resp)}B bin | head_hex={bhex(resp[:12])}")
-            #    else:
-            #        rospy.loginfo(f"[WS RX] {tag} <- text: {str(resp)[:120]}")
-            #except Exception:
-            #    pass
             ws.close()
         except Exception as e:
             rospy.logwarn(f"[WS] send failed ({tag}): {e}")
@@ -278,4 +242,3 @@ if __name__ == "__main__":
     rospy.init_node("vehicle_status_sender", anonymous=False)
     VehicleStatusSender()
     rospy.spin()
-

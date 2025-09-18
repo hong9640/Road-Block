@@ -13,6 +13,7 @@ import cv2
 from nav_msgs.msg import Path
 from geometry_msgs.msg import PoseStamped
 from morai_msgs.msg import CtrlCmd, EgoVehicleStatus
+from std_msgs.msg import String
 
 class HDMapManager:
     """
@@ -233,9 +234,11 @@ class AggressivePursuitNode:
         self.map_manager = HDMapManager(map_dir)
         self.visualizer = PathVisualizer(self.map_manager)
         
+        self.chase_active = False # 추격 활성화 상태 플래그
+        
         # ROS Subscribers
         rospy.Subscriber("/Ego_topic", EgoVehicleStatus, self.ego_status_callback)
-        rospy.Subscriber("/Ego-2/Ego_topic", EgoVehicleStatus, self.target_status_callback)
+        rospy.Subscriber("/Ego_2/Ego_topic", EgoVehicleStatus, self.target_status_callback)
         
         # ROS Publishers
         self.g_path_pub = rospy.Publisher('/global_path', Path, queue_size=1)
@@ -269,6 +272,15 @@ class AggressivePursuitNode:
         rospy.on_shutdown(self.shutdown_callback)
         rospy.loginfo("공격적 최단경로 추격 노드 시작 (역주행/U턴 가능).")
 
+    def chase_status_callback(self, msg):
+        """ChaseManager로부터 추격 상태 명령을 수신합니다."""
+        if msg.data == "START" and not self.chase_active:
+            self.chase_active = True
+            rospy.loginfo("추격 명령 수신! 주행을 시작합니다.")
+        elif msg.data == "STOP" and self.chase_active:
+            self.chase_active = False
+            rospy.loginfo("정지 명령 수신! 주행을 중지합니다.")
+
     def shutdown_callback(self):
         rospy.loginfo("노드 종료. OpenCV 창 닫기.")
         cv2.destroyAllWindows()
@@ -278,6 +290,14 @@ class AggressivePursuitNode:
 
     def control_loop(self, event):
         """메인 제어 루프. 타이머에 의해 주기적으로 실행됩니다."""
+        
+        # 추격이 활성화되지 않았다면, 정지 명령을 보내고 로직을 종료합니다.
+        if not self.chase_active:
+            if self.ego_status and self.ego_status.velocity.x > 0.5: # 완전히 멈출 때까지 브레이크
+                stop_cmd = CtrlCmd(longlCmdType=1, accel=0.0, brake=1.0, steering=0.0)
+                self.ctrl_pub.publish(stop_cmd)
+            return
+
         if not self.ego_status or not self.target_status: return
 
         # 1. 현재 차량 위치를 맵에 투영

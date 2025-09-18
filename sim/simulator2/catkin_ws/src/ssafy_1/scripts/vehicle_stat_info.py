@@ -42,9 +42,10 @@ def _hmac16(data: bytes) -> bytes:
 # =============================
 # 패킷 빌더
 # =============================
+# 가독성을 위해 파라미터 순서만 실제 패킷 순서와 일치시켰습니다.
 def build_status_packet(message_type: int, vehicle_id: int,
-                        collision_count: int, status_enum: int,
-                        fuel: int) -> bytes:
+                        fuel: int, collision_count: int,
+                        status_enum: int) -> bytes:
     header8 = struct.pack("<BIBBB", message_type, vehicle_id, fuel,
                           collision_count, status_enum)
     return header8 + _hmac16(header8)
@@ -157,7 +158,13 @@ class VehicleStatusSender:
         must_force = (self.force_send_every > 0.0) and ((now_ts - self._last_sent_ts) >= self.force_send_every)
 
         if must_force or (self._last_sent is None or current != self._last_sent):
-            pkt = build_status_packet(0x12, vehicle_id, current[1], current[2], current[0])
+            pkt = build_status_packet(
+                message_type=0x12,
+                vehicle_id=vehicle_id,
+                fuel=current[0],
+                collision_count=current[1],
+                status_enum=current[2]
+            )
             self._send_ws_binary(self.base_url, pkt, tag="status")
             self._last_sent = current
             self._last_sent_ts = now_ts
@@ -181,4 +188,3 @@ if __name__ == "__main__":
     rospy.init_node("vehicle_status_sender", anonymous=False)
     VehicleStatusSender()
     rospy.spin()
-
