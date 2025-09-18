@@ -7,11 +7,10 @@ const BASE_API_URL = import.meta.env.VITE_API_BASE;
 export const getVehicleListAPI = async () => {
   try {
     const response = await axios.get(`${BASE_API_URL}/vehicles`);
-    console.log(response);
     return response.data.vehicles;
   } catch (e) {
     console.error(e);
-    return carsData;    // 테스트용
+    return carsData;    // 테스트용 
   }
 };
 
@@ -20,6 +19,16 @@ export const getVehicleAPI = async (vehicle_id: number) => {
   try {
     const response = await axios.get(`${BASE_API_URL}/vehicles/${vehicle_id}`);
     return response.data;
+  } catch (e) {
+    console.error(e);
+  }
+};
+
+// 단일 차량 조회
+export const deleteVehicleAPI = async (vehicle_id: number) => {
+  try {
+    const response = await axios.delete(`${BASE_API_URL}/vehicles/${vehicle_id}`);
+    return response;
   } catch (e) {
     console.error(e);
   }
@@ -42,7 +51,6 @@ export const getMapAPI = async (map_id: number) => {
     const response = await axios.get(`${BASE_API_URL}/maps/${map_id}`, {
       headers: { Accept: "application/geo+json, application/json" },
     });
-    console.log(response);
     return response.data;
   } catch (e) {
     console.error(e);

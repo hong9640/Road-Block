@@ -9,6 +9,7 @@ interface VehicleState {
   addCar: (newCar: Vehicle) => void;
   updatePos: (targetId: number, posX: number, posY: number) => void;
   updateStatus: (targetId: number, details: CarDetail) => void;
+  deleteCar: (targetId: number) => void;
 }
 
 export const useVehicleStore = create<VehicleState>()((set) => ({
@@ -49,5 +50,12 @@ export const useVehicleStore = create<VehicleState>()((set) => ({
       activeCars: state.activeCars.map((car) =>
         car.id === targetId ? { ...car, details: details } : car
       ),
+    })),
+
+  // 차량 제거
+  deleteCar: (targetId) =>
+    set((state) => ({
+      activeCars: state.activeCars.filter((car) => car.id !== targetId),
+      carsPosition: state.carsPosition.filter((car) => car.id !== targetId),
     })),
 }));
