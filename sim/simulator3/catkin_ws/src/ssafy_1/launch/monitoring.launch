@@ -1,0 +1,7 @@
+<launch>
+
+    <node pkg="ssafy_1" type="vehicle_data.py" name="vehicle_data_register" output="screen" />
+
+    <node pkg="ssafy_1" type="vehicle_locate_info.py" name="vehicle_locate_updater" output="screen" respawn="true" />
+
+</launch>
