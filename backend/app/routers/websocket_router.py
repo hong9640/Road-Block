@@ -211,8 +211,13 @@ async def websocket_ros_vehicles(websocket: WebSocket):
             if ros_broadcast_event:
                 await vehicle_manager.broadcast_to_all_ros(ros_broadcast_event)
 
-    except WebSocketDisconnect:
-        print("ROS 차량 클라이언트 연결 해제")
+    except (WebSocketDisconnect, RuntimeError) as e:
+        if isinstance(e, RuntimeError):
+            # 런타임 에러(비정상 종료)일 경우 로그를 남김
+            print(f"ROS 클라이언트 연결 비정상 종료: {e}")
+        else:
+            # 정상적인 연결 종료
+            print("ROS 클라이언트 연결 정상 종료")
     finally:
         vehicle_manager.disconnect_ros(websocket)
 
@@ -241,7 +246,12 @@ async def websocket_ros_events(websocket: WebSocket):
             if ros_broadcast:
                 await event_manager.broadcast_to_all_ros(ros_broadcast)
 
-    except WebSocketDisconnect:
-        print("ROS 이벤트 클라이언트 연결 해제")
+    except (WebSocketDisconnect, RuntimeError) as e:
+        if isinstance(e, RuntimeError):
+            # 런타임 에러(비정상 종료)일 경우 로그를 남김
+            print(f"ROS 클라이언트 연결 비정상 종료: {e}")
+        else:
+            # 정상적인 연결 종료
+            print("ROS 클라이언트 연결 정상 종료")
     finally:
         event_manager.disconnect_ros(websocket)
