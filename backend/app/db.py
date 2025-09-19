@@ -8,6 +8,7 @@ from sqlalchemy.ext.asyncio import create_async_engine, AsyncSession, async_sess
 from sqlmodel import SQLModel, Field, select
 from app.schemas.websocket_schema import VehicleRegistrationRequest
 # (수정) models.py에서 정의한 실제 데이터베이스 모델들을 가져옵니다.
+from app.models import models
 from app.models.models import Vehicle, VehicleLocation, PoliceCar, Event
 from app.models.enums import PoliceCarStatusEnum, VehicleTypeEnum
 from app.schemas.websocket_schema import (
@@ -138,7 +139,7 @@ async def get_all_vehicles(session: AsyncSession) -> list[Vehicle]:
     statement = select(Vehicle).options(
         selectinload(Vehicle.locations),  # 차량 위치 정보들을 함께 로드
         selectinload(Vehicle.police_car)   # 경찰차 상태 정보를 함께 로드
-    )
+    ).where(models.Vehicle.deleted_at == None)
     result = await session.execute(statement)
     # .unique()를 사용하여 중복된 Vehicle 객체를 제거합니다.
     return result.scalars().unique().all()
