@@ -147,7 +147,7 @@ async def websocket_front_vehicles(websocket: WebSocket):
     await vehicle_manager.connect_front(websocket)
     try:
         # 1. 연결 직후, UI 초기 구성을 위해 DB의 모든 차량 데이터를 전송
-        await send_initial_vehicle_data(websocket)
+        # await send_initial_vehicle_data(websocket)
 
         # 2. 프론트엔드는 메시지를 보내지 않으므로, 연결을 유지하며 수신만 대기
         while True:
@@ -208,6 +208,7 @@ async def websocket_ros_vehicles(websocket: WebSocket):
             # 2. 프론트엔드 클라이언트 전체에 브로드캐스트
             if front_event:
                 await vehicle_manager.broadcast_to_front(front_event)
+                await event_manager.broadcast_to_front(front_event)
             
             # 3. 모든 ROS 클라이언트 (송신자 포함)에 이벤트 브로드캐스트
             if ros_broadcast_event:
@@ -245,6 +246,7 @@ async def websocket_ros_events(websocket: WebSocket):
                 await websocket.send_bytes(ros_response)
             if front_broadcast:
                 await event_manager.broadcast_to_front(front_broadcast)
+                await vehicle_manager.broadcast_to_front(front_broadcast)
             if ros_broadcast:
                 await event_manager.broadcast_to_all_ros(ros_broadcast)
 
