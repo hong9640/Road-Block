@@ -8,6 +8,7 @@ class MessageType(IntEnum):
     STATUS_UPDATE_REQUEST = 0x12
     EVENT_RUN = 0xFF
     TARGET_POSITION_BROADCAST = 0x14
+    EVENT_CATCH_BROADCAST = 0xFC
     # Backend <-> Frontend
     EVENT_VEHICLE_REGISTERED = 0xA2
     POSITION_BROADCAST_2D = 0x11
@@ -16,6 +17,7 @@ class MessageType(IntEnum):
     # 아래 2개는 font, Ros 전부 씀
     EVENT_CATCH_FAILED = 0xFD
     EVENT_CATCH = 0xFE
+    EVENT_CATCH_FAILED_BROADCAST = 0xFB
 
 
 class ErrorMessageType(IntEnum):

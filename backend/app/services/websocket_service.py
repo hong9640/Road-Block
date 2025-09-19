@@ -177,9 +177,17 @@ async def handle_incoming_event(data: bytes) -> HandlerResult:
         await save_event(db_session, {"status": event_type, "catcher_id": catcher.id, "runner_id": runner.id})
         logging.info(f"[DB] {event_type.name} 이벤트 저장 완료")
         
-        # 프론트와 ROS 모두에게 동일한 포맷으로 브로드캐스트
-        event_header = struct.pack('<BII', message_type, catcher.id, runner.id)
-        broadcast_packet = event_header + _calculate_hmac(event_header)
-        logging.info(f"[BCAST->ALL] {event_type.name}({hex(message_type)}) 이벤트 생성")
+        front_header = struct.pack('<BII', message_type, catcher.id, runner.id)
+        front_broadcast = front_header + _calculate_hmac(front_header)
+        logging.info(f"[BCAST->FE] {event_type.name}({hex(message_type)}) 이벤트 생성")
 
-        return (None, broadcast_packet, broadcast_packet)
+        # 2. ROS용 브로드캐스트 패킷 (새로운 메시지 타입, vehicle_id 사용)
+        ros_broadcast_type = (
+            MessageType.EVENT_CATCH_BROADCAST if event_type == EventStatus.CATCH 
+            else MessageType.EVENT_CATCH_FAILED_BROADCAST
+        )
+        ros_header = struct.pack('<BII', ros_broadcast_type, catcher.vehicle_id, runner.vehicle_id)
+        ros_broadcast = ros_header + _calculate_hmac(ros_header)
+        logging.info(f"[BCAST->ROS] {event_type.name}({hex(ros_broadcast_type)}) 이벤트 전파 생성")
+
+        return (None, front_broadcast, ros_broadcast)
