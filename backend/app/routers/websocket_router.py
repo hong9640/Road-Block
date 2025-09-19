@@ -83,8 +83,10 @@ async def send_initial_vehicle_data(websocket: WebSocket):
         positions_data = []
         for vehicle in all_vehicles:
             if vehicle.locations:
-                for location in vehicle.locations:
-                    positions_data.append(struct.pack('<Iff', vehicle.id, location.position_x, location.position_y))
+                latest_location = vehicle.locations[-1]
+                positions_data.append(
+                    struct.pack('<Iff', vehicle.id, latest_location.position_x, latest_location.position_y)
+                )
         if positions_data:
             header = struct.pack('<BI', MessageType.POSITION_BROADCAST_2D, len(positions_data))
             packed_positions = b"".join(positions_data)
