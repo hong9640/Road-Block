@@ -12,7 +12,7 @@ load_dotenv()
 HMAC_SECRET_KEY_STR = os.getenv("HMAC_SECRET_KEY")
 
 # 등록할 도둑 차량의 고유 ID (임의의 정수)
-VEHICLE_ID = 99111
+VEHICLE_ID = 9901
 
 # 등록할 도둑 차량의 이름 (최대 10바이트)
 CAR_NAME = "Runner-112327"

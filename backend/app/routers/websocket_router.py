@@ -164,7 +164,7 @@ async def websocket_front_events(websocket: WebSocket):
     await event_manager.connect_front(websocket)
     try:
         # 1. 연결 직후, UI 초기 구성을 위해 DB의 모든 이벤트 데이터를 전송
-        await send_initial_event_data(websocket)
+        # await send_initial_event_data(websocket)
 
         # 2. 프론트엔드는 메시지를 보내지 않으므로, 연결을 유지하며 수신만 대기
         while True:
