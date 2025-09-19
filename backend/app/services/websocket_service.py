@@ -12,7 +12,7 @@ from dotenv import load_dotenv
 from app.common.ws_codes import MessageType, ErrorMessageType, ErrorCode
 from app.db import (
     is_car_name_exists, save_vehicle, save_vehicle_location, update_vehicle_status,
-    get_vehicle_by_ros_id, save_event, AsyncSessionMaker
+    get_vehicle_by_ros_id, save_event, AsyncSessionMaker, has_run_event_occurred
 )
 from app.models.enums import VehicleTypeEnum, PoliceCarStatusEnum, EventStatus
 from app.models.models import Vehicle, PoliceCar
@@ -76,10 +76,13 @@ async def handle_vehicle_registration(data: bytes) -> HandlerResult:
 
         ros_broadcast_event = None
         if new_vehicle.vehicle_type == VehicleTypeEnum.RUNNER:
-            await save_event(db_session, {"status": EventStatus.RUN, "runner_id": new_vehicle.id})
-            run_header = struct.pack('<BI', MessageType.EVENT_RUN, new_vehicle.vehicle_id)
-            ros_broadcast_event = run_header + _calculate_hmac(run_header)
-            logging.info(f"[BCAST->ROS] 추적 시작({hex(MessageType.EVENT_RUN)}) 이벤트 생성")
+            if not await has_run_event_occurred(db_session, runner_id=new_vehicle.id):
+                await save_event(db_session, {"status": EventStatus.RUN, "runner_id": new_vehicle.id})
+                run_header = struct.pack('<BI', MessageType.EVENT_RUN, new_vehicle.vehicle_id)
+                ros_broadcast_event = run_header + _calculate_hmac(run_header)
+                logging.info(f"[BCAST->ROS] 추적 시작({hex(MessageType.EVENT_RUN)}) 이벤트 생성")
+            else:
+                logging.info(f"[EVENT] Runner(id:{new_vehicle.id})는 이미 추적 중이므로 '추적 시작' 이벤트를 생성하지 않음")
 
         car_name_padded = new_vehicle.car_name.encode('utf-8').ljust(10, b'\x00')
         front_header = struct.pack('<BIIB10s', MessageType.EVENT_VEHICLE_REGISTERED, new_vehicle.id, new_vehicle.vehicle_id, vehicle_type_int, car_name_padded)

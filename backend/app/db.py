@@ -10,7 +10,7 @@ from app.schemas.websocket_schema import VehicleRegistrationRequest
 # (수정) models.py에서 정의한 실제 데이터베이스 모델들을 가져옵니다.
 from app.models import models
 from app.models.models import Vehicle, VehicleLocation, PoliceCar, Event
-from app.models.enums import PoliceCarStatusEnum, VehicleTypeEnum
+from app.models.enums import PoliceCarStatusEnum, VehicleTypeEnum, EventStatus
 from app.schemas.websocket_schema import (
     VehicleRegistrationRequest, 
     VehicleLocationUpdateRequest,
@@ -165,3 +165,9 @@ async def get_all_events(session: AsyncSession) -> list[Event]:
     result = await session.execute(statement)
     # unique()를 추가하여 중복을 제거하고 관계 데이터를 올바르게 합칩니다.
     return result.scalars().unique().all()
+
+async def has_run_event_occurred(session: AsyncSession, runner_id: int) -> bool:
+    """특정 runner에 대한 RUN 이벤트가 이미 존재하는지 확인합니다."""
+    statement = select(Event).where(Event.runner_id == runner_id, Event.status == EventStatus.RUN)
+    result = await session.execute(select(statement.exists()))
+    return result.scalar_one()
