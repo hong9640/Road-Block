@@ -1,4 +1,4 @@
-import { mapsData } from "@/__mocks__";
+import { mapsData } from "@/lib/datas";
 import MapCard from "./MapCard";
 import { useNavigate } from "react-router-dom";
 

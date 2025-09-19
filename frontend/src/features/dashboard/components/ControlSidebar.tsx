@@ -2,16 +2,14 @@ import { useMemo, useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { Menu, X } from "lucide-react";
 
-import { mapsData } from "@/__mocks__";
 import type { DashboardContext } from "@/components/DashboardLayout";
-
 import LogListItem from "./LogListItem";
 import VehicleListItem from "./VehicleListItem";
-
 import { useVehicleStore } from "@/stores/useVehicleStore";
 import { useEventStore } from "@/stores/useEventStore";
 
 import { getEventListAPI, getVehicleListAPI } from "@/Apis";
+import { mapsData } from "@/lib/datas";
 
 export default function ControlSideBar({
   isOpen,

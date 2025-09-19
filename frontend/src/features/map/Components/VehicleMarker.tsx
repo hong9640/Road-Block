@@ -11,34 +11,55 @@ interface VehicleMarkerProps {
   map: Map | null;
 }
 
-export default function VehicleMarker({
-  id,
-  posX,
-  posY,
-  type,
-  map,
-}: VehicleMarkerProps) {
-  const elRef = useRef<HTMLDivElement>(null);
+export default function VehicleMarker({ id, posX, posY, type, map }: VehicleMarkerProps) {
+  const elRef = useRef<HTMLDivElement | null>(null);
 
-  // Overlay mount/unmount
   useEffect(() => {
-    if (!map || !elRef.current) return;
+    if (!map) return;
 
+    // React 관리 밖에서 DOM 생성
+    const container = document.createElement("div");
+    elRef.current = container;
+
+    // SVG DOM 생성 (보안 친화적으로 createElementNS 사용)
+    const svgNS = "http://www.w3.org/2000/svg";
+    const svg = document.createElementNS(svgNS, "svg");
+    svg.setAttribute("width", "20");
+    svg.setAttribute("height", "20");
+    svg.setAttribute("viewBox", "0 0 20 20");
+
+    const outerCircle = document.createElementNS(svgNS, "circle");
+    outerCircle.setAttribute("cx", "10");
+    outerCircle.setAttribute("cy", "10");
+    outerCircle.setAttribute("r", "9");
+    outerCircle.setAttribute("stroke", type === "police" ? "#5c80fc" : "#da4341");
+    outerCircle.setAttribute("stroke-width", "1.5");
+    outerCircle.setAttribute("fill", "none");
+
+    const innerCircle = document.createElementNS(svgNS, "circle");
+    innerCircle.setAttribute("cx", "10");
+    innerCircle.setAttribute("cy", "10");
+    innerCircle.setAttribute("r", "6.5");
+    innerCircle.setAttribute("fill", type === "police" ? "#5c80fc" : "#da4341");
+
+    svg.appendChild(outerCircle);
+    svg.appendChild(innerCircle);
+    container.appendChild(svg);
+
+    // OpenLayers Overlay 생성 및 추가
     const overlay = new Overlay({
-      element: elRef.current,
+      element: container,
       positioning: "center-center",
       stopEvent: false,
     });
-
     overlay.set("id", id);
     map.addOverlay(overlay);
 
     return () => {
       map.removeOverlay(overlay);
     };
-  }, [id, map]);
+  }, [id, map, type]);
 
-  // 좌표 변경 시 Overlay 위치 갱신
   useEffect(() => {
     if (map) {
       const overlay = map
@@ -49,33 +70,6 @@ export default function VehicleMarker({
     }
   }, [posX, posY, id, map]);
 
-  return (
-    <div ref={elRef} className="transform -translate-x-1/2 -translate-y-1/2">
-      {type === "police" ? (
-        <svg width="20" height="20" viewBox="0 0 20 20">
-          <circle
-            cx="10"
-            cy="10"
-            r="9"
-            stroke="#5c80fc"
-            strokeWidth="1.5"
-            fill="none"
-          />
-          <circle cx="10" cy="10" r="6.5" fill="#5c80fc" />
-        </svg>
-      ) : (
-        <svg width="20" height="20" viewBox="0 0 20 20">
-          <circle
-            cx="10"
-            cy="10"
-            r="9"
-            stroke="#da4341"
-            strokeWidth="1.5"
-            fill="none"
-          />
-          <circle cx="10" cy="10" r="6.5" fill="#da4341" />
-        </svg>
-      )}
-    </div>
-  );
+  // React는 DOM을 렌더링하지 않음
+  return null;
 }

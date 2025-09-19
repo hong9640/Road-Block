@@ -1,5 +1,4 @@
 import MapView from "@/features/map/Components/MapView";
-import VehicleMarker from "@/features/map/Components/VehicleMarker";
 import { useParams } from "react-router-dom";
 
 export const MapPage: React.FC = () => {

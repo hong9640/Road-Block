@@ -48,3 +48,4 @@ tmp/
 
 # Vite cache
 .vite/
+__mocks__.ts

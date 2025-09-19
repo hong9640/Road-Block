@@ -1,17 +1,32 @@
+import { useEventStore } from "@/stores/useEventStore";
 import { useVehicleStore } from "@/stores/useVehicleStore";
+import { type DamageLevel, type VehicleType } from "@/types";
+
+const VEHICLE_TYPE_MAP: Record<number, VehicleType> = {
+  0: "police",
+  1: "runner",
+} as const;
+
+const DAMAGE_LEVEL_MAP: Record<number, DamageLevel> = {
+  0: "normal",
+  1: "half_destroyed",
+  2: "complete_destroyed",
+} as const;
+
+const { addCar, updatePos, updateStatus, deleteCar } =
+  useVehicleStore.getState();
+const { addEvents } = useEventStore.getState();
 
 // 차량 수신 정보 처리
 export function onVehicle(binaryData: ArrayBuffer) {
   const view = new DataView(binaryData);
   const eventType = view.getUint8(0);
 
-  const { updatePos } = useVehicleStore.getState();
-
   switch (eventType) {
     // 차량 등록
     case 0xa2: {
-      const vehicle_id = view.getUint32(1, true);
-      const type = view.getUint8(9);
+      const id = view.getUint32(1, true);
+      const type_num = view.getUint8(9);
 
       const decoder = new TextDecoder("utf-8"); // 인코딩 명시
       const strBytes = new Uint8Array(binaryData, 10, 10); // offset 8, 길이 20
@@ -25,23 +40,21 @@ export function onVehicle(binaryData: ArrayBuffer) {
         }
       }
 
+      const vehicle_type = VEHICLE_TYPE_MAP[type_num];
       const car_name = decoder.decode(strBytes.subarray(0, end));
 
-      console.log(vehicle_id, type, car_name);
-
+      addCar({ id, car_name, vehicle_type, details: null });
       break;
     }
 
     // 차량 위치 정보 업데이트
     case 0x11: {
       const num_of_vehicle = view.getUint32(1, true);
-      console.log(num_of_vehicle);
 
       for (let i = 0; i < num_of_vehicle; i++) {
         const vehicle_id = view.getUint32(5 + 12 * i, true);
         const posX = view.getFloat32(9 + 12 * i, true);
         const posY = view.getFloat32(13 + 12 * i, true);
-        console.log(vehicle_id, posX, posY);
 
         updatePos(vehicle_id, posX, posY);
       }
@@ -52,36 +65,65 @@ export function onVehicle(binaryData: ArrayBuffer) {
     // 차량 상태 정보 업데이트
     case 0x10: {
       const vehicle_id = view.getUint32(1, true);
-      const collision_count = view.getUint8(5);
+      const colision_count = view.getUint8(5);
       const status_enum = view.getUint8(6);
-      const status = () => {
-        switch (status_enum) {
-          case 0:
-            return "normal";
-          case 1:
-            return "half_destroyed";
-          case 2:
-            return "complete_destroyed";
-        }
-      };
       const fuel = view.getUint8(7);
 
-      console.log(vehicle_id, collision_count, status(), fuel);
+      const status = DAMAGE_LEVEL_MAP[status_enum];
+
+      updateStatus(vehicle_id, { colision_count, status, fuel });
+
       break;
     }
 
     // 시스템 오류
     case 0x03: {
       const errCode = view.getUint8(1);
+      errorLog(errCode);
+      break;
+    }
 
-      switch (errCode) {
-        case 100:
-          console.error("서버에 오류가 발생하였습니다.");
-          break;
-        case 101:
-          console.error("DB에서 오류가 발생하였습니다.");
-          break;
-      }
+    default:
+      break;
+  }
+}
+
+// 이벤트 수신 정보 처리
+export function onEvent(
+  binaryData: ArrayBuffer,
+  opts?: {
+    openModal: (p: { title: string; content: React.ReactNode }) => void;
+  }
+) {
+  const view = new DataView(binaryData);
+  const eventType = view.getUint8(0);
+
+  switch (eventType) {
+    // 추적 시작
+    case 0xf0: {
+      const runner_id = view.getUint32(1, true);
+      addEvents(runner_id, null, "run");
+      break;
+    }
+
+    // 추적 실패 (시연에는 없음)
+    case 0xfd: {
+      break;
+    }
+
+    // 검거 성공
+    case 0xfe: {
+      const catcher_id = view.getUint32(1, true);
+      const runner_id = view.getUint32(5, true);
+      addEvents(runner_id, catcher_id, "run");
+      deleteCar(runner_id);
+      break;
+    }
+
+    // 에러 발생
+    case 0x03: {
+      const errCode = view.getUint8(1);
+      errorLog(errCode);
       break;
     }
 
@@ -91,13 +133,13 @@ export function onVehicle(binaryData: ArrayBuffer) {
   }
 }
 
-// 이벤트 수신 정보 처리
-export function onEvent(binaryData: ArrayBuffer) {
-  const view = new DataView(binaryData);
-  const eventType = view.getUint8(0);
-
-  switch (eventType) {
-    case 0:
+function errorLog(errCode: number) {
+  switch (errCode) {
+    case 100:
+      console.error("서버에 오류가 발생하였습니다.");
+      break;
+    case 101:
+      console.error("DB 저장에 실패하였습니다.");
       break;
   }
 }
