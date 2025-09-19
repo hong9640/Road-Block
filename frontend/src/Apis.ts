@@ -1,6 +1,4 @@
 import axios from "axios";
-import { carsData, logsData } from "./__mocks__";
-
 const BASE_API_URL = import.meta.env.VITE_API_BASE;
 
 // 차량 리스트 조회
@@ -10,7 +8,6 @@ export const getVehicleListAPI = async () => {
     return response.data.vehicles;
   } catch (e) {
     console.error(e);
-    return carsData;    // 테스트용 
   }
 };
 
@@ -41,7 +38,6 @@ export const getEventListAPI = async () => {
     return response.data.events;
   } catch (e) {
     console.error(e);
-    return logsData;
   }
 };
 
