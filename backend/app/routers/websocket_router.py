@@ -216,7 +216,7 @@ async def websocket_ros_events(websocket: WebSocket):
                 if ros_response:
                     await websocket.send_bytes(ros_response)
                 if front_broadcast:
-                    event_log.info(f"BROADCAST EVENT: {front_broadcast.hex()}")
+                    event_log.info(f"BROADCAST EVENT: 등록완료")
                     await event_manager.broadcast_to_front(front_broadcast)
                     # await vehicle_manager.broadcast_to_front(front_broadcast)
                 if ros_broadcast:
