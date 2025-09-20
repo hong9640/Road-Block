@@ -180,7 +180,7 @@ async def websocket_ros_vehicles(websocket: WebSocket):
                         try:
                             # <BIBf -> type(1), id(4), status(1), timestamp(4) = 10바이트
                             _, runner_id, status_int, _ = struct.unpack('<BIBf', event_packet[:10])
-                            event_log.info(f"BROADCAST EVENT [TRACE_START]: runner_id={runner_id}, status={status_int}")
+                            event_log.info(f"BROADCAST EVENT [TRACE_START]: runner_id={runner_id}")
                         except struct.error:
                             event_log.info(f"BROADCAST EVENT [TRACE_START]: (패킷 해석 실패)")
                         await event_manager.broadcast_to_front(event_packet)
