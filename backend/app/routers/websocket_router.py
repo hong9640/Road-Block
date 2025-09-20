@@ -177,7 +177,12 @@ async def websocket_ros_vehicles(websocket: WebSocket):
                         await vehicle_manager.broadcast_to_front(front_events['front_vehicle_event'])
                     if 'front_game_event' in front_events:
                         event_packet = front_events['front_game_event']
-                        event_log.info(f"BROADCAST EVENT: {event_packet.hex()}")
+                        try:
+                            # <BIBf -> type(1), id(4), status(1), timestamp(4) = 10바이트
+                            _, runner_id, status_int, _ = struct.unpack('<BIBf', event_packet[:10])
+                            event_log.info(f"BROADCAST EVENT [TRACE_START]: runner_id={runner_id}, status={status_int}")
+                        except struct.error:
+                            event_log.info(f"BROADCAST EVENT [TRACE_START]: (패킷 해석 실패)")
                         await event_manager.broadcast_to_front(event_packet)
 
             elif message_type == MessageType.POSITION_BROADCAST:
@@ -216,9 +221,14 @@ async def websocket_ros_events(websocket: WebSocket):
                 if ros_response:
                     await websocket.send_bytes(ros_response)
                 if front_broadcast:
-                    event_log.info(f"BROADCAST EVENT: 등록완료")
+                    try:
+                        # <BII -> type(1), catcher_id(4), runner_id(4) = 9바이트
+                        msg_type, catcher_id, runner_id = struct.unpack('<BII', front_broadcast[:9])
+                        log_event_type = "CATCH" if msg_type == MessageType.EVENT_CATCH else "FAILED"
+                        event_log.info(f"BROADCAST EVENT [{log_event_type}]: catcher_id={catcher_id}, runner_id={runner_id}")
+                    except struct.error:
+                        event_log.info(f"BROADCAST EVENT [CATCH/FAILED]: (패킷 해석 실패)")
                     await event_manager.broadcast_to_front(front_broadcast)
-                    # await vehicle_manager.broadcast_to_front(front_broadcast)
                 if ros_broadcast:
                     await event_manager.broadcast_to_all_ros(ros_broadcast)
 
