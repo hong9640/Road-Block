@@ -17,10 +17,10 @@ HMAC_SECRET_KEY_STR = os.getenv("HMAC_SECRET_KEY")
 EVENT_TYPE = "CATCH"  
 
 # 잡은 경찰차의 고유 ID (요청하신 값)
-CATCHER_ID = 123
+CATCHER_ID = 9119
 
 # 잡힌 도둑 차량의 고유 ID (이전에 등록한 도둑 차량 ID로 가정)
-RUNNER_ID = 9901
+RUNNER_ID = 9916
 # ---------------------------------------------
 
 def generate_catch_packet():

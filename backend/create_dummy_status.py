@@ -12,7 +12,7 @@ load_dotenv()
 HMAC_SECRET_KEY_STR = os.getenv("HMAC_SECRET_KEY")
 
 # 상태를 업데이트할 경찰차의 고유 ID (DB에 존재하는 경찰차 ID)
-VEHICLE_ID = 123 
+VEHICLE_ID = 9119
 
 # 업데이트할 상태 값
 FUEL = 60        # 현재 연료량 (0-100)

@@ -12,10 +12,10 @@ load_dotenv()
 HMAC_SECRET_KEY_STR = os.getenv("HMAC_SECRET_KEY")
 
 # 등록할 도둑 차량의 고유 ID (임의의 정수)
-VEHICLE_ID = 99134
+VEHICLE_ID = 9119
 
 # 등록할 도둑 차량의 이름 (최대 10바이트)
-CAR_NAME = "Runner-1117"
+CAR_NAME = "Police-911"
 # ---------------------------------------------
 
 # --- 패킷 구조 정의 ---
@@ -23,7 +23,7 @@ CAR_NAME = "Runner-1117"
 MESSAGE_TYPE = 0xA0
 
 # 차량 타입 (0: 경찰차, 1: 도둑차)
-VEHICLE_TYPE = 1
+VEHICLE_TYPE = 0
 
 def generate_registration_packet():
     """도둑 차량 등록을 위한 바이너리 패킷을 생성합니다."""

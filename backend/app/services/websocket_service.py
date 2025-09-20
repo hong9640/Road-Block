@@ -5,7 +5,7 @@ import struct
 import hmac
 import hashlib
 import os
-from typing import Tuple, Optional
+from typing import Tuple, Optional, Dict
 from dotenv import load_dotenv
 
 # --- 최종 확정된 ws_codes 임포트 ---
@@ -28,7 +28,7 @@ if not SECRET_key_str:
 SECRET_KEY = SECRET_key_str.encode('utf-8')
 
 # --- 반환 타입 명시 (일관성을 위해 사용) ---
-HandlerResult = Tuple[Optional[bytes], Optional[bytes], Optional[bytes]]
+HandlerResult = Tuple[Optional[bytes], Optional[Dict[str, bytes]], Optional[bytes]]
 
 # ===================================================================
 # 헬퍼 함수: 패킷 생성 및 HMAC 계산
@@ -49,9 +49,12 @@ def _create_ros_error_packet(error_code: ErrorCode) -> bytes:
 # ===================================================================
 
 async def handle_vehicle_registration(data: bytes) -> HandlerResult:
-    """차량 등록 요청(0xA0)을 처리합니다."""
+    """
+    차량 등록 요청(0xA0)을 처리합니다.
+    - front_vehicle_event: 차량 등록(0xA2) 패킷
+    - front_game_event: 추적 시작(0xF0) 패킷 (runner일 경우)
+    """
     try:
-        # 명세서에 따른 언패킹
         _, vehicle_id, vehicle_type_int, car_name_bytes, received_hmac = struct.unpack('<BIB10s16s', data)
         if not hmac.compare_digest(_calculate_hmac(data[:16]), received_hmac):
             raise ValueError("HMAC 검증 실패")
@@ -60,7 +63,7 @@ async def handle_vehicle_registration(data: bytes) -> HandlerResult:
 
     except (struct.error, ValueError, UnicodeDecodeError) as e:
         logging.warning(f"[{hex(MessageType.REGISTER_REQUEST)}] 등록 패킷 파싱/검증 실패: {e}")
-        return (_create_ros_error_packet(ErrorCode.INVALID_FORMAT), None, None)
+        return (None, None, None)
 
     async with AsyncSessionMaker() as db_session:
         if await is_car_name_exists(db_session, car_name):
@@ -72,24 +75,33 @@ async def handle_vehicle_registration(data: bytes) -> HandlerResult:
             new_vehicle.police_car = PoliceCar()
         await save_vehicle(db_session, vehicle_instance=new_vehicle)
         await db_session.refresh(new_vehicle)
-        logging.info(f"[DB] 새 차량 등록 성공: id={new_vehicle.id}, name='{new_vehicle.car_name}'")
-
+        
+        front_events_dict: Dict[str, bytes] = {}
         ros_broadcast_event = None
+
+        # 1. (항상 생성) 프론트엔드 차량 채널용 등록(0xA2) 이벤트 생성
+        car_name_padded = new_vehicle.car_name.encode('utf-8').ljust(10, b'\x00')
+        front_vehicle_header = struct.pack('<BIIB10s', MessageType.EVENT_VEHICLE_REGISTERED, new_vehicle.id, new_vehicle.vehicle_id, vehicle_type_int, car_name_padded)
+        front_events_dict['front_vehicle_event'] = front_vehicle_header + _calculate_hmac(front_vehicle_header)
+        logging.info(f"[BCAST->FE] 차량 등록({hex(MessageType.EVENT_VEHICLE_REGISTERED)}) 이벤트 생성 (id: {new_vehicle.id})")
+
+        # 2. (Runner일 경우에만 생성) ROS 및 프론트엔드 이벤트 채널용 추적 시작(0xFF, 0xF0) 이벤트
         if new_vehicle.vehicle_type == VehicleTypeEnum.RUNNER:
             if not await has_run_event_occurred(db_session, runner_id=new_vehicle.id):
-                await save_event(db_session, {"status": EventStatus.RUN, "runner_id": new_vehicle.id})
-                run_header = struct.pack('<BI', MessageType.EVENT_RUN, new_vehicle.vehicle_id)
-                ros_broadcast_event = run_header + _calculate_hmac(run_header)
-                logging.info(f"[BCAST->ROS] 추적 시작({hex(MessageType.EVENT_RUN)}) 이벤트 생성")
-            else:
-                logging.info(f"[EVENT] Runner(id:{new_vehicle.id})는 이미 추적 중이므로 '추적 시작' 이벤트를 생성하지 않음")
+                run_event = await save_event(db_session, {"status": EventStatus.RUN, "runner_id": new_vehicle.id})
+                
+                ros_run_header = struct.pack('<BI', MessageType.EVENT_RUN, new_vehicle.vehicle_id)
+                ros_broadcast_event = ros_run_header + _calculate_hmac(ros_run_header)
+                logging.info(f"[BCAST->ROS] 추적 시작({hex(MessageType.EVENT_RUN)}) 이벤트 생성 (runner_id: {new_vehicle.vehicle_id})")
 
-        car_name_padded = new_vehicle.car_name.encode('utf-8').ljust(10, b'\x00')
-        front_header = struct.pack('<BIIB10s', MessageType.EVENT_VEHICLE_REGISTERED, new_vehicle.id, new_vehicle.vehicle_id, vehicle_type_int, car_name_padded)
-        front_event = front_header + _calculate_hmac(front_header)
-        logging.info(f"[BCAST->FE] 차량 등록({hex(MessageType.EVENT_VEHICLE_REGISTERED)}) 이벤트 생성")
-
-        return (None, front_event, ros_broadcast_event)
+                status_enum_map = {status.value: i for i, status in enumerate(EventStatus)}
+                status_int = status_enum_map.get(run_event.status.value, 0)
+                timestamp = run_event.created_at.timestamp()
+                front_game_header = struct.pack('<BIBf', MessageType.EVENT_TRACE_START, run_event.runner_id, status_int, timestamp)
+                front_events_dict['front_game_event'] = front_game_header + _calculate_hmac(front_game_header)
+                logging.info(f"[BCAST->FE] 추적 시작({hex(MessageType.EVENT_TRACE_START)}) 이벤트 생성 (runner_id: {run_event.runner_id})")
+        
+        return (None, front_events_dict, ros_broadcast_event)
 
 
 async def handle_location_update(data: bytes) -> HandlerResult:
@@ -100,7 +112,7 @@ async def handle_location_update(data: bytes) -> HandlerResult:
             raise ValueError("HMAC 검증 실패")
     except (struct.error, ValueError) as e:
         logging.warning(f"[{hex(MessageType.POSITION_BROADCAST)}] 위치 패킷 파싱/검증 실패: {e}")
-        return (_create_ros_error_packet(ErrorCode.INVALID_FORMAT), None, None)
+        return (None, None, None)
 
     async with AsyncSessionMaker() as db_session:
         vehicle = await get_vehicle_by_ros_id(db_session, vehicle_id)
@@ -112,15 +124,17 @@ async def handle_location_update(data: bytes) -> HandlerResult:
 
         positions_data = struct.pack('<Iff', vehicle.id, pos_x, pos_y)
         front_header = struct.pack('<BI', MessageType.POSITION_BROADCAST_2D, 1)
-        front_event = front_header + positions_data + _calculate_hmac(front_header + positions_data)
+        front_event_packet = front_header + positions_data + _calculate_hmac(front_header + positions_data)
 
         ros_broadcast_event = None
         if vehicle.vehicle_type == VehicleTypeEnum.RUNNER:
             ros_loc_header = struct.pack('<BIff', MessageType.TARGET_POSITION_BROADCAST, vehicle.vehicle_id, pos_x, pos_y)
             ros_broadcast_event = ros_loc_header + _calculate_hmac(ros_loc_header)
-            logging.info(f"[BCAST->ROS] 도둑 차량 위치 전파")
+            logging.info(f"[BCAST->ROS] 도둑 차량(vehicle_id:{vehicle.vehicle_id}) 위치 전파")
         
-        return (None, front_event, ros_broadcast_event)
+        # 💡 변경점: 프론트엔드 이벤트를 딕셔너리에 담아 반환
+        front_events_dict = {'front_vehicle_event': front_event_packet}
+        return (None, front_events_dict, ros_broadcast_event)
 
 
 async def handle_vehicle_status_update(data: bytes) -> HandlerResult:
@@ -146,9 +160,12 @@ async def handle_vehicle_status_update(data: bytes) -> HandlerResult:
         await update_vehicle_status(db_session, vehicle.id, fuel, collision, new_status_enum)
 
         front_header = struct.pack('<BIBBB', MessageType.STATE_UPDATE, vehicle.id, collision, status_int, fuel)
-        front_event = front_header + _calculate_hmac(front_header)
+        front_event_packet = front_header + _calculate_hmac(front_header)
+        logging.info(f"[BCAST->FE] 상태 업데이트({hex(MessageType.STATE_UPDATE)}) 이벤트 생성 (id: {vehicle.id})")
         
-        return (None, front_event, None)
+        # 💡 변경점: 프론트엔드 이벤트를 딕셔너리에 담아 반환
+        front_events_dict = {'front_vehicle_event': front_event_packet}
+        return (None, front_events_dict, None)
 
 
 async def handle_incoming_event(data: bytes) -> HandlerResult:
