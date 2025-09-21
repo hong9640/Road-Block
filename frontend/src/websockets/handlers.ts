@@ -102,6 +102,7 @@ export function onEvent(
     // 추적 시작
     case 0xf0: {
       const runner_id = view.getUint32(1, true);
+      console.log(runner_id);
       addEvents(runner_id, null, "run");
       break;
     }
@@ -115,7 +116,8 @@ export function onEvent(
     case 0xfe: {
       const catcher_id = view.getUint32(1, true);
       const runner_id = view.getUint32(5, true);
-      addEvents(runner_id, catcher_id, "run");
+      console.log(catcher_id, runner_id);
+      addEvents(runner_id, catcher_id, "catch");
       deleteCar(runner_id);
       break;
     }
@@ -142,4 +144,8 @@ function errorLog(errCode: number) {
       console.error("DB 저장에 실패하였습니다.");
       break;
   }
+}
+
+export function onTest(binaryData: ArrayBuffer) {
+  console.log(binaryData);
 }

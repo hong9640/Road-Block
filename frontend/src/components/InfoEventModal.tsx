@@ -79,13 +79,15 @@ export function InfoEventModal({
 
   if (!open) return null;
 
-  // Info 전용 스타일(고정)
-  const ICON_COLOR = "#2563eb";
-
   const portalRoot = document.getElementById("modal-root") ?? document.body;
 
   return createPortal(
-    <div ref={overlayRef} onMouseDown={onBackdrop} aria-hidden="false">
+    <div
+      ref={overlayRef}
+      onMouseDown={onBackdrop}
+      aria-hidden="false"
+      className="fixed inset-0 z-50 flex items-center justify-center bg-black/50"
+    >
       <div
         ref={dialogRef}
         role="dialog"
@@ -93,25 +95,28 @@ export function InfoEventModal({
         aria-labelledby={titleId}
         aria-describedby={descId}
         onKeyDown={onKeyDown}
+        className="bg-white rounded-lg shadow-lg max-w-md w-full"
       >
         {/* 헤더 */}
-        <div>
-          <div aria-hidden="true">
-            <Info size={22} color={ICON_COLOR} aria-hidden="true" />
+        <div className="flex items-center justify-between mb-4 bg-gray-800 text-white px-4 py-2 rounded-t-lg">
+          <div className="flex items-center gap-2">
+            <Info size={22} className="text-white" aria-hidden="true" />
+            <h2 id={titleId} className="text-lg font-semibold">
+              {title}
+            </h2>
           </div>
-
-          <div style={{ minWidth: 0 }}>
-            <h2 id={titleId}>{title}</h2>
-          </div>
-
-          {/* 닫기(X) */}
-          <button type="button" aria-label="닫기" onClick={onClose}>
-            <X aria-hidden="true" size={18} />
+          <button
+            type="button"
+            aria-label="닫기"
+            onClick={onClose}
+            className="p-1 rounded hover:bg-blue-500"
+          >
+            <X size={18} className="text-white" />
           </button>
         </div>
 
         {/* 본문 */}
-        {children ? <div id={descId}>{children}</div> : null}
+        {children ? <div className="px-4 pb-4" id={descId}>{children}</div> : null}
       </div>
     </div>,
     portalRoot
