@@ -8,8 +8,9 @@ from sqlalchemy.ext.asyncio import create_async_engine, AsyncSession, async_sess
 from sqlmodel import SQLModel, Field, select
 from app.schemas.websocket_schema import VehicleRegistrationRequest
 # (수정) models.py에서 정의한 실제 데이터베이스 모델들을 가져옵니다.
+from app.models import models
 from app.models.models import Vehicle, VehicleLocation, PoliceCar, Event
-from app.models.enums import PoliceCarStatusEnum, VehicleTypeEnum
+from app.models.enums import PoliceCarStatusEnum, VehicleTypeEnum, EventStatus
 from app.schemas.websocket_schema import (
     VehicleRegistrationRequest, 
     VehicleLocationUpdateRequest,
@@ -67,11 +68,22 @@ async def create_db_and_tables():
     print("--- Database tables created successfully. ---")
 
 
-async def get_vehicle_by_ros_id(session: AsyncSession, ros_vehicle_id: int) -> Optional[Vehicle]:
-    """ROS vehicle_id를 사용하여 Vehicle 테이블에서 해당하는 차량 객체를 찾습니다."""
-    statement = select(Vehicle).where(Vehicle.vehicle_id == ros_vehicle_id)
+async def get_vehicle_by_ros_id(session: AsyncSession, ros_id: int) -> Vehicle | None:
+    """
+    ROS ID(vehicle_id)를 사용하여 특정 Vehicle 객체를 반환합니다.
+    이때 연관된 police_car, caught_events, run_events 정보도 함께 '즉시 로딩'합니다.
+    """
+    statement = (
+        select(Vehicle)
+        .options(
+            selectinload(Vehicle.police_car),
+            selectinload(Vehicle.caught_events), 
+            selectinload(Vehicle.run_events)
+        )
+        .where(Vehicle.vehicle_id == ros_id)
+    )
     result = await session.execute(statement)
-    return result.scalar_one_or_none()
+    return result.scalars().first()
 
 
 async def is_car_name_exists(session: AsyncSession, car_name: str) -> bool:
@@ -127,7 +139,7 @@ async def get_all_vehicles(session: AsyncSession) -> list[Vehicle]:
     statement = select(Vehicle).options(
         selectinload(Vehicle.locations),  # 차량 위치 정보들을 함께 로드
         selectinload(Vehicle.police_car)   # 경찰차 상태 정보를 함께 로드
-    )
+    ).where(models.Vehicle.deleted_at == None)
     result = await session.execute(statement)
     # .unique()를 사용하여 중복된 Vehicle 객체를 제거합니다.
     return result.scalars().unique().all()
@@ -143,7 +155,19 @@ async def save_event(session: AsyncSession, event_data: dict) -> Event:
 async def get_all_events(session: AsyncSession) -> list[Event]:
     """
     데이터베이스에 저장된 모든 Event 객체 리스트를 반환합니다.
+    이때 연관된 runner와 catcher 정보도 함께 '즉시 로딩'합니다.
     """
-    statement = select(Event).order_by(Event.event_id) # 시간 순으로 정렬
+    statement = (
+        select(Event)
+        .options(selectinload(Event.runner), selectinload(Event.catcher))
+        .order_by(Event.event_id)
+    )
     result = await session.execute(statement)
-    return result.scalars().all()
+    # unique()를 추가하여 중복을 제거하고 관계 데이터를 올바르게 합칩니다.
+    return result.scalars().unique().all()
+
+async def has_run_event_occurred(session: AsyncSession, runner_id: int) -> bool:
+    """특정 runner에 대한 RUN 이벤트가 이미 존재하는지 확인합니다."""
+    statement = select(Event).where(Event.runner_id == runner_id, Event.status == EventStatus.RUN)
+    result = await session.execute(select(statement.exists()))
+    return result.scalar_one()

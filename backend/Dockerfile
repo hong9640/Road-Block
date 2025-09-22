@@ -1,5 +1,5 @@
 # 1. 베이스 이미지: 파이썬 3.10 슬림 버전
-FROM python:3.10-slim
+FROM python:3.11-slim
 
 # 2. 컨테이너 내 작업 디렉토리 설정
 WORKDIR /code

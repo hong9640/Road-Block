@@ -1,96 +1,64 @@
+# create_dummy_data.py
+
 import struct
 import hmac
 import hashlib
 import os
-import sys
-import asyncio
 from dotenv import load_dotenv
 
-project_root = os.path.dirname(os.path.abspath(__file__))
-sys.path.append(project_root)
-
-# 2. dotenv 라이브러리를 임포트합니다.
-from dotenv import load_dotenv
-
-# 3. .env 파일의 절대 경로를 직접 계산하여 load_dotenv에 전달합니다.
-#    이렇게 하면 스크립트를 어디서 실행하든 경로 문제가 발생하지 않습니다.
-dotenv_path = os.path.join(project_root, '.env')
-if os.path.exists(dotenv_path):
-    load_dotenv(dotenv_path)
-    print(f"✅ .env 파일 로드 성공: {dotenv_path}")
-else:
-    # 이 메시지가 보인다면 .env 파일 이름이나 위치에 정말로 문제가 있는 것입니다.
-    raise FileNotFoundError(f"❌ .env 파일을 찾을 수 없습니다: {dotenv_path}")
-
-# --- DB 및 프로젝트 모듈 임포트 ---
-from app.db import AsyncSessionMaker, get_vehicle_by_ros_id, save_vehicle_location
-
-# .env 파일에서 환경 변수를 로드합니다.
+# --- .env 파일 로드 ---
 load_dotenv()
 
-# --- 설정 ---
-SECRET_key_str = os.getenv("HMAC_SECRET_KEY")
-if not SECRET_key_str:
-    raise ValueError("HMAC_SECRET_KEY가 .env 파일에 설정되지 않았습니다.")
-SECRET_KEY = SECRET_key_str.encode('utf-8')
+# --- ⚙️ 설정: 이 부분을 수정하여 테스트하세요 ---
+# .env 파일에서 HMAC 시크릿 키를 불러옵니다.
+HMAC_SECRET_KEY_STR = os.getenv("HMAC_SECRET_KEY")
+
+# 위치를 업데이트할 차량의 고유 ID (이전에 등록한 도둑 차량의 ID)
+VEHICLE_ID = 9916
+
+# 업데이트할 새로운 X, Y 좌표
+POSITION_X = 100.001
+POSITION_Y = 20.502
+# ---------------------------------------------
+
+# --- 💡 수정된 부분: 패킷 구조 정의 ---
+# 메시지 타입 (0x13: 위치 정보 브로드캐스트)
+MESSAGE_TYPE = 0x13
+
+def generate_location_packet():
+    """차량 위치 업데이트(0x13)를 위한 바이너리 패킷을 생성합니다."""
+
+    if not HMAC_SECRET_KEY_STR:
+        print("🛑 에러: .env 파일에 HMAC_SECRET_KEY가 없거나 파일이 존재하지 않습니다.")
+        return
+
+    HMAC_SECRET_KEY = HMAC_SECRET_KEY_STR.encode('utf-8')
+
+    # 1. 💡 수정된 부분: HMAC을 제외한 앞부분 데이터를 패킹합니다. (총 13바이트)
+    # < : Little-endian
+    # B : unsigned char (1 byte) - 메시지 타입 ✨
+    # I : unsigned int (4 bytes) - 차량 ID
+    # f : float (4 bytes) - X 좌표
+    # f : float (4 bytes) - Y 좌표
+    header_data = struct.pack('<BIff', MESSAGE_TYPE, VEHICLE_ID, POSITION_X, POSITION_Y)
+
+    # 2. 생성된 헤더 데이터를 기반으로 HMAC 인증 코드를 계산합니다.
+    hmac_code = hmac.new(HMAC_SECRET_KEY, header_data, hashlib.sha256).digest()[:16]
+
+    # 3. 💡 수정된 부분: 헤더 데이터와 HMAC 코드를 합쳐 최종 패킷을 완성합니다. (총 29바이트)
+    full_packet = header_data + hmac_code
+
+    print("✅ 위치 업데이트 패킷 생성 완료!")
+    print("-" * 30)
+    print(f"  - 메시지 타입: {hex(MESSAGE_TYPE)}")
+    print(f"  - 차량 ID: {VEHICLE_ID}")
+    print(f"  - 좌표: X={POSITION_X}, Y={POSITION_Y}")
+    print(f"  - 최종 패킷 길이: {len(full_packet)} bytes")
+    print("-" * 30)
+    print("👇 아래 16진수 문자열을 복사해서 Postman에 사용하세요.")
+    print(f"\n생성된 패킷 (Hex):")
+    print(full_packet.hex())
 
 
-def _calculate_hmac(data: bytes) -> bytes:
-    """서버와 동일한 방식으로 HMAC-SHA256 값을 계산합니다 (16바이트로 자름)."""
-    return hmac.new(SECRET_KEY, data, hashlib.sha256).digest()[:16]
-
-def create_location_packet(vehicle_id: int, x: float, y: float) -> bytes:
-    """차량 위치 정보를 담은 바이너리 패킷을 생성합니다."""
-    header = struct.pack('<Iff', vehicle_id, x, y)
-    hmac_signature = _calculate_hmac(header)
-    packet = header + hmac_signature
-    return packet
-
-async def main():
-    """메인 비동기 실행 함수"""
-    # --- 더미 데이터 정의 ---
-    # id가 6인 차량의 vehicle_id(ROS ID)가 6이라고 가정합니다.
-    # 만약 다르다면 이 값을 실제 vehicle_id로 변경해야 합니다.
-    TARGET_VEHICLE_ID = 123
-    DUMMY_POS_X = 37.1234
-    DUMMY_POS_Y = 127.5678
-    
-    # 1. 더미 데이터로 바이너리 패킷 생성
-    dummy_packet = create_location_packet(TARGET_VEHICLE_ID, DUMMY_POS_X, DUMMY_POS_Y)
-    
-    print("--- 위치 정보 더미 데이터 생성 결과 ---")
-    print(f"대상 차량 ID (ROS): {TARGET_VEHICLE_ID}")
-    print(f"좌표: ({DUMMY_POS_X}, {DUMMY_POS_Y})")
-    print(f"생성된 패킷 길이: {len(dummy_packet)} bytes")
-    print(f"생성된 패킷 (Hex): {dummy_packet.hex()}")
-
-    # 2. 생성된 위치 정보를 DB에 저장
-    print("\n--- 데이터베이스에 위치 정보 저장 시작 ---")
-    try:
-        async with AsyncSessionMaker() as session:
-            # ROS ID를 사용해 DB에서 차량의 내부 PK(id)를 찾습니다.
-            target_vehicle = await get_vehicle_by_ros_id(session, TARGET_VEHICLE_ID)
-            
-            if target_vehicle:
-                # `save_vehicle_location` 함수는 차량의 내부 PK를 필요로 합니다.
-                success = await save_vehicle_location(
-                    session,
-                    vehicle_pk_id=target_vehicle.id,
-                    pos_x=DUMMY_POS_X,
-                    pos_y=DUMMY_POS_Y
-                )
-                if success:
-                    print(f"✅ 성공: Vehicle(id={target_vehicle.id})의 위치 정보를 DB에 저장했습니다.")
-                else:
-                    print("❌ 실패: 위치 정보 저장에 실패했습니다.")
-            else:
-                print(f"❌ 실패: DB에서 vehicle_id가 {TARGET_VEHICLE_ID}인 차량을 찾을 수 없습니다.")
-
-    except Exception as e:
-        print(f"❌ DB 작업 중 에러 발생: {e}")
-
-
-# --- 스크립트 실행 ---
 if __name__ == "__main__":
-    # 비동기 main 함수를 실행합니다.
-    asyncio.run(main())
+    generate_location_packet()

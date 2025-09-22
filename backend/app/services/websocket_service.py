@@ -1,29 +1,29 @@
 # app/services/websocket_service.py
-import traceback
+
 import logging
 import struct
 import hmac
 import hashlib
-from typing import Tuple, Optional, Any, Dict
 import os
-import math
+from datetime import datetime, timezone
+from zoneinfo import ZoneInfo 
+from typing import Tuple, Optional, Dict
 from dotenv import load_dotenv
-from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy.orm import selectinload
-from sqlmodel import select
 
-# --- 로거 설정 ---
-logging.basicConfig(level=logging.DEBUG, format='%(asctime)s - %(levelname)s - %(message)s')
-
-# --- 프로젝트 내부 모듈 import ---
-from app.common.ws_codes import MessageType, RosErrorCode, FrontErrorCode
-from app.schemas import websocket_schema
+# --- 최종 확정된 ws_codes 임포트 ---
+from app.common.ws_codes import MessageType, ErrorMessageType, ErrorCode
 from app.db import (
     is_car_name_exists, save_vehicle, save_vehicle_location, update_vehicle_status,
-    get_vehicle_by_ros_id, get_all_vehicles, save_event, AsyncSessionMaker
+    get_vehicle_by_ros_id, save_event, AsyncSessionMaker, has_run_event_occurred
 )
 from app.models.enums import VehicleTypeEnum, PoliceCarStatusEnum, EventStatus
 from app.models.models import Vehicle, PoliceCar
+
+# --- 타임존 설정 ---
+KST = ZoneInfo("Asia/Seoul")
+
+# --- 로거 설정 ---
+logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 
 # --- 환경 변수 및 HMAC 설정 ---
 load_dotenv()
@@ -32,202 +32,191 @@ if not SECRET_key_str:
     raise ValueError("HMAC_SECRET_KEY 환경 변수가 설정되지 않았습니다.")
 SECRET_KEY = SECRET_key_str.encode('utf-8')
 
+# --- 반환 타입 명시 (일관성을 위해 사용) ---
+HandlerResult = Tuple[Optional[bytes], Optional[Dict[str, bytes]], Optional[bytes]]
+
+# ===================================================================
+# 헬퍼 함수: 패킷 생성 및 HMAC 계산
+# ===================================================================
+
 def _calculate_hmac(data: bytes) -> bytes:
+    """주어진 데이터의 HMAC을 계산합니다."""
     return hmac.new(SECRET_KEY, data, hashlib.sha256).digest()[:16]
 
-# --- 패킷 생성 헬퍼 ---
-def _create_ros_error_packet(error_code: RosErrorCode) -> bytes:
-    header = struct.pack('<BB', MessageType.NACK_ERROR, error_code.value)
+def _create_ros_error_packet(error_code: ErrorCode) -> bytes:
+    """ROS 클라이언트에게 보낼 NACK 에러 패킷을 생성합니다."""
+    header = struct.pack('<BB', ErrorMessageType.NACK_ERROR, error_code.value)
     return header + _calculate_hmac(header)
 
-def _create_front_error_packet(error_code: FrontErrorCode) -> bytes:
-    header = struct.pack('<BB', MessageType.SYSTEM_ERROR, error_code.value)
-    return header + _calculate_hmac(header)
+# ===================================================================
+# ROS 요청 처리 핸들러
+# 각 함수는 (ROS응답, 프론트_브로드캐스트, ROS_브로드캐스트) 튜플을 반환합니다.
+# ===================================================================
 
-def create_start_tracking_packet(event_data: websocket_schema.StartTrackingEvent) -> bytes:
-    header = struct.pack('<BI', MessageType.EVENT_TRACE_START, event_data.runner_id)
-    return header + _calculate_hmac(header)
-
-def create_capture_success_packet(event_data: websocket_schema.CaptureSuccessEvent) -> bytes:
-    header = struct.pack('<BII', MessageType.EVENT_CATCH, event_data.catcher_id, event_data.runner_id)
-    return header + _calculate_hmac(header)
-
-def create_catch_failed_packet(event_data: websocket_schema.CatchFailedEvent) -> bytes:
-    header = struct.pack('<BII', MessageType.EVENT_CATCH_FAILED, event_data.police_id, event_data.runner_id)
-    return header + _calculate_hmac(header)
-
-# --- 게임 이벤트 발생 로직 ---
-async def create_and_save_event(session: AsyncSession, event_type: str, police_ros_id: int, runner_ros_id: int) -> Optional[bytes]:
-    binary_packet, db_event_data = None, None
-    catcher_vehicle = await get_vehicle_by_ros_id(session, police_ros_id)
-    runner_vehicle = await get_vehicle_by_ros_id(session, runner_ros_id)
-    if not catcher_vehicle or not runner_vehicle: return None
-
-    if event_type == "capture_success":
-        event_model = websocket_schema.CaptureSuccessEvent(catcher_id=police_ros_id, runner_id=runner_ros_id)
-        binary_packet = create_capture_success_packet(event_model)
-        db_event_data = {"status": EventStatus.CATCH, "catcher_id": catcher_vehicle.id, "runner_id": runner_vehicle.id}
-    elif event_type == "capture_failed":
-        event_model = websocket_schema.CatchFailedEvent(police_id=police_ros_id, runner_id=runner_ros_id)
-        binary_packet = create_catch_failed_packet(event_model)
-        db_event_data = {"status": EventStatus.RUN, "catcher_id": catcher_vehicle.id, "runner_id": runner_vehicle.id}
-    
-    if binary_packet and db_event_data:
-        await save_event(session, db_event_data)
-        logging.info(f"--- DB에 이벤트 저장 완료: {event_type} ---")
-        return binary_packet
-    return None
-
-# --- 메인 서비스 핸들러 ---
-async def handle_vehicle_registration(data: bytes) -> Tuple[bytes, Optional[bytes]]:
-    logging.debug(f"[RECV /register] raw 데이터: {data.hex()}")
+async def handle_vehicle_registration(data: bytes) -> HandlerResult:
+    """
+    차량 등록 요청(0xA0)을 처리합니다.
+    - front_vehicle_event: 차량 등록(0xA2) 패킷
+    - front_game_event: 추적 시작(0xF0) 패킷 (runner일 경우)
+    """
     try:
-        if len(data) != 32: raise struct.error("Incorrect packet size")
-        msg_type, vehicle_id, vehicle_type_int, car_name_bytes, received_hmac = struct.unpack('<BIB10s16s', data)
-        if msg_type != MessageType.REGISTER_REQUEST: raise ValueError("Invalid message type")
-        if not hmac.compare_digest(_calculate_hmac(data[:16]), received_hmac): raise ValueError("HMAC validation failed")
-        request_data = websocket_schema.VehicleRegistrationRequest(
-            vehicle_id=vehicle_id, vehicle_type=vehicle_type_int, car_name=car_name_bytes.decode('utf-8').strip('\x00')
-        )
-        logging.debug(f"[UNPACK] {request_data}")
-    except (struct.error, ValueError) as e:
-        logging.warning(f"[FAIL] 등록 정보 파싱/검증 실패: {e}")
-        return (_create_ros_error_packet(RosErrorCode.INVALID_FORMAT), None)
+        _, vehicle_id, vehicle_type_int, car_name_bytes, received_hmac = struct.unpack('<BIB10s16s', data)
+        if not hmac.compare_digest(_calculate_hmac(data[:16]), received_hmac):
+            raise ValueError("HMAC 검증 실패")
+        car_name = car_name_bytes.decode('utf-8').strip('\x00')
+        vehicle_type = VehicleTypeEnum.POLICE if vehicle_type_int == 0 else VehicleTypeEnum.RUNNER
+
+    except (struct.error, ValueError, UnicodeDecodeError) as e:
+        logging.warning(f"[{hex(MessageType.REGISTER_REQUEST)}] 등록 패킷 파싱/검증 실패: {e}")
+        return (None, None, None)
 
     async with AsyncSessionMaker() as db_session:
-        try:
-            if await is_car_name_exists(db_session, request_data.car_name):
-                return (_create_ros_error_packet(RosErrorCode.DUPLICATE_NAME), None)
-            
-            vehicle_type_enum = VehicleTypeEnum.POLICE if request_data.vehicle_type == 0 else VehicleTypeEnum.RUNNER
-            new_vehicle_instance = Vehicle(
-                vehicle_id=request_data.vehicle_id, vehicle_type=vehicle_type_enum, car_name=request_data.car_name
-            )
-            if vehicle_type_enum == VehicleTypeEnum.POLICE:
-                new_vehicle_instance.police_car = PoliceCar()
-            
-            await save_vehicle(db_session, vehicle_instance=new_vehicle_instance)
-            await db_session.refresh(new_vehicle_instance) # 저장 후 id를 얻기 위해 refresh
-            logging.info(f"[DB] 새 차량 등록 성공: id={new_vehicle_instance.id}, name='{new_vehicle_instance.car_name}'")
-            
-            event_data = websocket_schema.VehicleRegisteredEvent(
-                id=new_vehicle_instance.id, vehicle_id=new_vehicle_instance.vehicle_id, vehicle_type=request_data.vehicle_type, car_name=request_data.car_name
-            )
-        except Exception as e:
-            logging.error(f"[FAIL] DB 작업 중 에러: {e}")
-            return (_create_ros_error_packet(RosErrorCode.INVALID_DATA), _create_front_error_packet(FrontErrorCode.DATABASE_ERROR))
+        if await is_car_name_exists(db_session, car_name):
+            logging.warning(f"[{hex(MessageType.REGISTER_REQUEST)}] 차량 이름 중복: '{car_name}'")
+            return (_create_ros_error_packet(ErrorCode.DUPLICATE_NAME), None, None)
 
-    ros_response = struct.pack('<BI', MessageType.REGISTER_SUCCESS, event_data.vehicle_id)
-    car_name_padded = event_data.car_name.encode('utf-8').ljust(10, b'\x00')
-    event_header = struct.pack('<BIIB10s', MessageType.EVENT_VEHICLE_REGISTERED, event_data.id, event_data.vehicle_id, event_data.vehicle_type, car_name_padded)
-    front_event = event_header + _calculate_hmac(event_header)
-    logging.debug(f"[SEND /register] ROS 응답: {ros_response.hex()}, FE 이벤트: {front_event.hex()}")
-    return (ros_response, front_event)
+        new_vehicle = Vehicle(vehicle_id=vehicle_id, vehicle_type=vehicle_type, car_name=car_name)
+        if vehicle_type == VehicleTypeEnum.POLICE:
+            new_vehicle.police_car = PoliceCar()
+        await save_vehicle(db_session, vehicle_instance=new_vehicle)
+        await db_session.refresh(new_vehicle)
+        
+        front_events_dict: Dict[str, bytes] = {}
+        ros_broadcast_event = None
 
-async def handle_location_update(data: bytes, managers: Dict[str, Any]) -> Optional[bytes]:
-    """ ✨ 디버깅 print문이 추가된 최종 추적 버전 """
-    print("\n--- [DEBUG] 1. handle_location_update 진입 ---")
-    try:
-        if len(data) != 28: return None
-        ros_vehicle_id, pos_x, pos_y, received_hmac = struct.unpack('<Iff16s', data)
-        if not hmac.compare_digest(_calculate_hmac(data[:12]), received_hmac): return None
-        print(f"--- [DEBUG] 2. 데이터 파싱 성공: vehicle_id={ros_vehicle_id} ---")
-    except (struct.error, ValueError):
-        return None
+        # 1. (항상 생성) 프론트엔드 차량 채널용 등록(0xA2) 이벤트 생성
+        car_name_padded = new_vehicle.car_name.encode('utf-8').ljust(10, b'\x00')
+        front_vehicle_header = struct.pack('<BIIB10s', MessageType.EVENT_VEHICLE_REGISTERED, new_vehicle.id, new_vehicle.vehicle_id, vehicle_type_int, car_name_padded)
+        front_events_dict['front_vehicle_event'] = front_vehicle_header + _calculate_hmac(front_vehicle_header)
+        logging.info(f"[BCAST->FE] 차량 등록({hex(MessageType.EVENT_VEHICLE_REGISTERED)}) 이벤트 생성 (id: {new_vehicle.id})")
 
-    game_event_packet_to_broadcast = None
-
-    print("--- [DEBUG] 3. DB 작업(async with) 시작 ---")
-    async with AsyncSessionMaker() as db_session:
-        try:
-            print("--- [DEBUG] 4. get_vehicle_by_ros_id 호출 ---")
-            vehicle = await get_vehicle_by_ros_id(db_session, ros_vehicle_id)
-            if not vehicle:
-                print(f"--- [DEBUG] 5. 차량 없음(id={ros_vehicle_id}), 종료 ---")
-                return None
-            print(f"--- [DEBUG] 5. 차량 찾음 (DB id={vehicle.id}) ---")
-
-            print("--- [DEBUG] 6. save_vehicle_location 호출 ---")
-            await save_vehicle_location(db_session, vehicle_pk_id=vehicle.id, pos_x=pos_x, pos_y=pos_y)
-            print("--- [DEBUG] 7. 위치 저장 성공 ---")
-
-            if vehicle.vehicle_type == VehicleTypeEnum.RUNNER:
-                print("--- [DEBUG] 8. 충돌 감지 로직 시작 ---")
-                stmt = select(Vehicle).where(Vehicle.vehicle_type == VehicleTypeEnum.POLICE).options(selectinload(Vehicle.locations))
-                result = await db_session.execute(stmt)
-                police_cars = result.scalars().unique().all()
-                print(f"--- [DEBUG] 9. 경찰차 {len(police_cars)}대 조회됨 ---")
+        # 2. (Runner일 경우에만 생성) ROS 및 프론트엔드 이벤트 채널용 추적 시작(0xFF, 0xF0) 이벤트
+        if new_vehicle.vehicle_type == VehicleTypeEnum.RUNNER:
+            if not await has_run_event_occurred(db_session, runner_id=new_vehicle.id):
+                run_event = await save_event(db_session, {"status": EventStatus.RUN, "runner_id": new_vehicle.id})
                 
-                for police in police_cars:
-                    if police.locations:
-                        latest_police_loc = police.locations[-1]
-                        distance = math.sqrt((pos_x - latest_police_loc.position_x)**2 + (pos_y - latest_police_loc.position_y)**2)
-                        
-                        if distance < 1.0:
-                            print("--- [DEBUG] 10. 충돌 감지! 이벤트 생성 시도 ---")
-                            game_event_packet_to_broadcast = await create_and_save_event(
-                                db_session, "capture_success", police.vehicle_id, vehicle.vehicle_id
-                            )
-                            break
-                print("--- [DEBUG] 11. 충돌 감지 로직 종료 ---")
+                ros_run_header = struct.pack('<BI', MessageType.EVENT_RUN, new_vehicle.vehicle_id)
+                ros_broadcast_event = ros_run_header + _calculate_hmac(ros_run_header)
+                logging.info(f"[BCAST->ROS] 추적 시작({hex(MessageType.EVENT_RUN)}) 이벤트 생성 (runner_id: {new_vehicle.vehicle_id})")
 
-        except Exception as e:
-            # 에러가 발생하면 정확한 내용을 출력합니다.
-            print(f"\n--- [DEBUG] !!! DB 블록 내부에서 심각한 에러 발생 !!! ---")
-            print(f"--- [DEBUG] 에러 타입: {type(e).__name__} ---")
-            print(f"--- [DEBUG] 에러 내용: {e} ---")
-            traceback.print_exc()
-            # 에러가 발생했으므로 트랜잭션은 자동으로 롤백됩니다.
-            # 하지만 여기서 다시 예외를 발생시켜 함수가 비정상 종료되었음을 알립니다.
-            raise
-    
-    print("--- [DEBUG] 12. DB 작업(async with) 정상 종료 ---")
-    if game_event_packet_to_broadcast:
-        await managers['event'].broadcast(game_event_packet_to_broadcast)
-        await managers['vehicle'].broadcast(game_event_packet_to_broadcast)
-    
-    loc_broadcast_header = struct.pack('<BIff', MessageType.POSITION_BROADCAST_2D, ros_vehicle_id, pos_x, pos_y)
-    return loc_broadcast_header + _calculate_hmac(loc_broadcast_header)
+                status_enum_map = {status.value: i for i, status in enumerate(EventStatus)}
+                status_int = status_enum_map.get(run_event.status.value, 0)
+                created_at_utc = run_event.created_at.replace(tzinfo=timezone.utc)
+                # KST로 변환합니다.
+                created_at_kst = created_at_utc.astimezone(KST)
+                # 변환된 KST 시간의 timestamp()를 사용합니다.
+                timestamp = created_at_kst.timestamp()
+                front_game_header = struct.pack('<BIBf', MessageType.EVENT_TRACE_START, run_event.runner_id, status_int, timestamp)
+                front_events_dict['front_game_event'] = front_game_header + _calculate_hmac(front_game_header)
+                logging.info(f"[BCAST->FE] 추적 시작({hex(MessageType.EVENT_TRACE_START)}) 이벤트 생성 (runner_id: {run_event.runner_id})")
+        
+        return (None, front_events_dict, ros_broadcast_event)
 
-async def handle_vehicle_status_update(data: bytes, managers: Dict[str, Any]) -> Tuple[Optional[bytes], Optional[bytes]]:
-    logging.debug(f"[RECV /status] raw 데이터: {data.hex()}")
+
+async def handle_location_update(data: bytes) -> HandlerResult:
+    """차량 위치 정보(0x13)를 처리합니다."""
     try:
-        if len(data) != 24: raise struct.error("Incorrect size")
-        msg_type, vehicle_id, fuel, collision, status_int, received_hmac = struct.unpack('<BIBBB16s', data)
-        if msg_type != MessageType.STATUS_UPDATE_REQUEST: raise ValueError("Invalid type")
-        if not hmac.compare_digest(_calculate_hmac(data[:8]), received_hmac): raise ValueError("HMAC fail")
-        logging.debug(f"[UNPACK] vehicle_id={vehicle_id}, fuel={fuel}, collision={collision}, status={status_int}")
+        _, vehicle_id, pos_x, pos_y, received_hmac = struct.unpack('<BIff16s', data)
+        if not hmac.compare_digest(_calculate_hmac(data[:13]), received_hmac):
+            raise ValueError("HMAC 검증 실패")
     except (struct.error, ValueError) as e:
-        logging.warning(f"[FAIL] 상태 정보 파싱/검증 실패: {e}")
-        return (_create_ros_error_packet(RosErrorCode.INVALID_FORMAT), None)
+        logging.warning(f"[{hex(MessageType.POSITION_BROADCAST)}] 위치 패킷 파싱/검증 실패: {e}")
+        return (None, None, None)
 
-    game_event_packet_to_broadcast = None
-    ros_response, front_event = None, None
+    async with AsyncSessionMaker() as db_session:
+        vehicle = await get_vehicle_by_ros_id(db_session, vehicle_id)
+        if not vehicle:
+            logging.warning(f"[{hex(MessageType.POSITION_BROADCAST)}] vehicle_id({vehicle_id})를 찾을 수 없음")
+            return (_create_ros_error_packet(ErrorCode.INVALID_DATA), None, None)
+
+        await save_vehicle_location(db_session, vehicle.id, pos_x, pos_y)
+
+        positions_data = struct.pack('<Iff', vehicle.id, pos_x, pos_y)
+        front_header = struct.pack('<BI', MessageType.POSITION_BROADCAST_2D, 1)
+        front_event_packet = front_header + positions_data + _calculate_hmac(front_header + positions_data)
+
+        ros_broadcast_event = None
+        if vehicle.vehicle_type == VehicleTypeEnum.RUNNER:
+            ros_loc_header = struct.pack('<BIff', MessageType.TARGET_POSITION_BROADCAST, vehicle.vehicle_id, pos_x, pos_y)
+            ros_broadcast_event = ros_loc_header + _calculate_hmac(ros_loc_header)
+            logging.info(f"[BCAST->ROS] 도둑 차량(vehicle_id:{vehicle.vehicle_id}) 위치 전파")
+        
+        # 💡 변경점: 프론트엔드 이벤트를 딕셔너리에 담아 반환
+        front_events_dict = {'front_vehicle_event': front_event_packet}
+        return (None, front_events_dict, ros_broadcast_event)
+
+
+async def handle_vehicle_status_update(data: bytes) -> HandlerResult:
+    """차량 상태 정보(0x12)를 처리합니다."""
+    try:
+        _, vehicle_id, fuel, collision, status_int, received_hmac = struct.unpack('<BIBBB16s', data)
+        if not hmac.compare_digest(_calculate_hmac(data[:8]), received_hmac):
+            raise ValueError("HMAC 검증 실패")
+    except (struct.error, ValueError) as e:
+        logging.warning(f"[{hex(MessageType.STATUS_UPDATE_REQUEST)}] 상태 패킷 파싱/검증 실패: {e}")
+        return (_create_ros_error_packet(ErrorCode.INVALID_FORMAT), None, None)
+    
     async with AsyncSessionMaker() as db_session:
         vehicle = await get_vehicle_by_ros_id(db_session, vehicle_id)
         if not vehicle or vehicle.vehicle_type != VehicleTypeEnum.POLICE:
-            return (_create_ros_error_packet(RosErrorCode.INVALID_DATA), None)
-
-        status_map = {0: PoliceCarStatusEnum.NORMAL, 1: PoliceCarStatusEnum.HALF_DESTROYED, 2: PoliceCarStatusEnum.COMPLETE_DESTROYED}
+            return (_create_ros_error_packet(ErrorCode.INVALID_DATA), None, None)
+        
+        status_map = {i: s for i, s in enumerate(PoliceCarStatusEnum)}
         new_status_enum = status_map.get(status_int)
-        if new_status_enum is None: return (_create_ros_error_packet(RosErrorCode.INVALID_FORMAT), None)
-
+        if new_status_enum is None:
+            return (_create_ros_error_packet(ErrorCode.INVALID_FORMAT), None, None)
+            
         await update_vehicle_status(db_session, vehicle.id, fuel, collision, new_status_enum)
-        logging.debug(f"[DB] vehicle(id={vehicle.id}) 상태 정보 저장 성공")
-        await db_session.refresh(vehicle.police_car)
-        
-        if vehicle.police_car.status == PoliceCarStatusEnum.COMPLETE_DESTROYED:
-            logging.info(f"[EVENT-TRIGGER] 경찰차(id={vehicle_id}) 파괴됨. 검거 실패 이벤트 발생 시도.")
-            runners_result = await db_session.execute(select(Vehicle).where(Vehicle.vehicle_type == VehicleTypeEnum.RUNNER))
-            active_runner = runners_result.scalars().first()
-            if active_runner:
-                game_event_packet_to_broadcast = await create_and_save_event(db_session, "capture_failed", vehicle.vehicle_id, active_runner.vehicle_id)
 
-    if game_event_packet_to_broadcast:
-        await managers['event'].broadcast(game_event_packet_to_broadcast)
-        await managers['vehicle'].broadcast(game_event_packet_to_broadcast)
+        front_header = struct.pack('<BIBBB', MessageType.STATE_UPDATE, vehicle.id, collision, status_int, fuel)
+        front_event_packet = front_header + _calculate_hmac(front_header)
+        logging.info(f"[BCAST->FE] 상태 업데이트({hex(MessageType.STATE_UPDATE)}) 이벤트 생성 (id: {vehicle.id})")
         
-    event_header = struct.pack('<BIBBB', MessageType.STATE_UPDATE, vehicle_id, collision, status_int, fuel)
-    front_event = event_header + _calculate_hmac(event_header)
-    logging.debug(f"[SEND /status] 프론트엔드로 브로드캐스트할 패킷: {front_event.hex()}")
-    return (ros_response, front_event)
+        # 💡 변경점: 프론트엔드 이벤트를 딕셔너리에 담아 반환
+        front_events_dict = {'front_vehicle_event': front_event_packet}
+        return (None, front_events_dict, None)
+
+
+async def handle_incoming_event(data: bytes) -> HandlerResult:
+    """검거 이벤트(0xFE, 0xFD)를 처리합니다."""
+    try:
+        message_type = data[0]
+        event_status_map = {
+            MessageType.EVENT_CATCH: EventStatus.CATCH,
+            MessageType.EVENT_CATCH_FAILED: EventStatus.FAILED,
+        }
+        event_type = event_status_map.get(message_type)
+        if event_type is None:
+            raise ValueError("알 수 없는 이벤트 타입")
+            
+        _, catcher_ros_id, runner_ros_id, received_hmac = struct.unpack('<BII16s', data)
+        if not hmac.compare_digest(_calculate_hmac(data[:9]), received_hmac):
+            raise ValueError("HMAC 검증 실패")
+
+    except (struct.error, ValueError) as e:
+        logging.warning(f"[EVENT] 이벤트 패킷 파싱/검증 실패: {e}")
+        return (_create_ros_error_packet(ErrorCode.INVALID_FORMAT), None, None)
+
+    async with AsyncSessionMaker() as db_session:
+        catcher = await get_vehicle_by_ros_id(db_session, catcher_ros_id)
+        runner = await get_vehicle_by_ros_id(db_session, runner_ros_id)
+        if not catcher or not runner:
+            return (_create_ros_error_packet(ErrorCode.INVALID_DATA), None, None)
+        
+        await save_event(db_session, {"status": event_type, "catcher_id": catcher.id, "runner_id": runner.id})
+        logging.info(f"[DB] {event_type.name} 이벤트 저장 완료")
+        
+        front_header = struct.pack('<BII', message_type, catcher.id, runner.id)
+        front_broadcast = front_header + _calculate_hmac(front_header)
+        logging.info(f"[BCAST->FE] {event_type.name}({hex(message_type)}) 이벤트 생성")
+
+        # 2. ROS용 브로드캐스트 패킷 (새로운 메시지 타입, vehicle_id 사용)
+        ros_broadcast_type = (
+            MessageType.EVENT_CATCH_BROADCAST if event_type == EventStatus.CATCH 
+            else MessageType.EVENT_CATCH_FAILED_BROADCAST
+        )
+        ros_header = struct.pack('<BII', ros_broadcast_type, catcher.vehicle_id, runner.vehicle_id)
+        ros_broadcast = ros_header + _calculate_hmac(ros_header)
+        logging.info(f"[BCAST->ROS] {event_type.name}({hex(ros_broadcast_type)}) 이벤트 전파 생성")
+
+        return (None, front_broadcast, ros_broadcast)
