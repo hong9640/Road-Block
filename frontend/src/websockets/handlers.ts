@@ -92,11 +92,17 @@ export function onVehicle(binaryData: ArrayBuffer) {
 export function onEvent(
   binaryData: ArrayBuffer,
   opts?: {
-    openModal: (p: { title: string; content: React.ReactNode }) => void;
+    openModal: (p: {
+      title: string;
+      content: React.ReactNode;
+      autoCloseMs?: number;
+    }) => void;
   }
 ) {
   const view = new DataView(binaryData);
   const eventType = view.getUint8(0);
+
+  console.log(eventType);
 
   switch (eventType) {
     // 추적 시작
@@ -104,6 +110,11 @@ export function onEvent(
       const runner_id = view.getUint32(1, true);
       console.log(runner_id);
       addEvents(runner_id, null, "run");
+      opts?.openModal({
+        title: "도주 차량 발견",
+        content: `${runner_id}번 도주 차량을 발견하였습니다.`,
+        autoCloseMs: 5000,
+      });
       break;
     }
 
@@ -116,7 +127,11 @@ export function onEvent(
     case 0xfe: {
       const catcher_id = view.getUint32(1, true);
       const runner_id = view.getUint32(5, true);
-      console.log(catcher_id, runner_id);
+      opts?.openModal({
+        title: "검거 완료",
+        content: `${catcher_id}번 경찰차가 ${runner_id}번 도주 차량을 검거하였습니다.`,
+        autoCloseMs: 5000,
+      });
       addEvents(runner_id, catcher_id, "catch");
       deleteCar(runner_id);
       break;

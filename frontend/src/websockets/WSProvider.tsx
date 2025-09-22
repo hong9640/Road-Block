@@ -17,10 +17,7 @@ import { InfoEventModal } from "@/components/InfoEventModal";
 type WSStatus = "idle" | "connecting" | "open" | "closed" | "error";
 type Ctx = {
   status: WSStatus;
-  send: (
-    url: string,
-    data: string
-  ) => boolean;
+  send: (url: string, data: string) => boolean;
 };
 const WSContext = createContext<Ctx | null>(null);
 
@@ -42,6 +39,7 @@ export function WSProvider({ children, blockUntilOpen = false }: Props) {
   const [open, setOpen] = useState(false);
   const [title, setTitle] = useState("알림");
   const [content, setContent] = useState<React.ReactNode>(null);
+  const [autoCloseMs, setAutoCloseMs] = useState<number | undefined>(undefined);
 
   useEffect(() => {
     if (didInitRef.current) return;
@@ -52,9 +50,10 @@ export function WSProvider({ children, blockUntilOpen = false }: Props) {
       const socket = WSconnect(item.url, (binaryData: ArrayBuffer) => {
         if (item.handler === onEvent) {
           item.handler(binaryData, {
-            openModal: ({ title, content }) => {
+            openModal: ({ title, content, autoCloseMs }) => {
               setTitle(title);
               setContent(content);
+              setAutoCloseMs(autoCloseMs);
               setOpen(true);
             },
           });
@@ -95,7 +94,12 @@ export function WSProvider({ children, blockUntilOpen = false }: Props) {
     <WSContext.Provider value={api}>
       {children}
       {/* EventListener의 모달을 Provider 내부에 흡수 */}
-      <InfoEventModal open={open} onClose={() => setOpen(false)} title={title}>
+      <InfoEventModal
+        open={open}
+        onClose={() => setOpen(false)}
+        title={title}
+        autoCloseMs={autoCloseMs}
+      >
         {content}
       </InfoEventModal>
     </WSContext.Provider>

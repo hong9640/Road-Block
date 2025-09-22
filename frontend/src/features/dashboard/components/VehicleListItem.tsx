@@ -1,6 +1,6 @@
 import { deleteVehicleAPI } from "@/Apis";
 import { useVehicleStore } from "@/stores/useVehicleStore";
-import type { Vehicle } from "@/types";
+import type { Vehicle, VehicleType } from "@/types";
 
 interface VehicleListItemProps {
   car: Vehicle;
@@ -17,12 +17,21 @@ export default function VehicleListItem({ car }: VehicleListItemProps) {
     }
   };
 
+  const handleCarName = (name: VehicleType) => {
+    switch (name) {
+      case "police":
+        return "경찰";
+      case "runner":
+        return "용의자";
+    }
+  };
+
   return (
     <details className="mx-2 mb-2 rounded border border-gray-300 bg-sky-100 text-black">
       {/* 요약부: 이름 + (원하면 유형 표기) */}
       <summary className="flex justify-between items-center px-2 py-1 cursor-pointer select-none">
         <span className="font-medium">{car.car_name}</span>
-        <span className="text-xs text-gray-700">{car.vehicle_type}</span>
+        <span className="text-xs text-gray-700">{handleCarName(car.vehicle_type)}</span>
       </summary>
 
       {/* 상세부: 연료/상태/액션 */}

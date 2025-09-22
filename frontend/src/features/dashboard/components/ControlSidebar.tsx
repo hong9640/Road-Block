@@ -1,6 +1,5 @@
 import { useMemo, useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
-import { Menu, X } from "lucide-react";
 
 import type { DashboardContext } from "@/components/DashboardLayout";
 import LogListItem from "./LogListItem";
@@ -13,7 +12,6 @@ import { mapsData } from "@/lib/datas";
 
 export default function ControlSideBar({
   isOpen,
-  setIsOpen,
 }: DashboardContext) {
   const nav = useNavigate();
   const events = useEventStore((s) => s.events);
@@ -52,8 +50,8 @@ export default function ControlSideBar({
             로드블락 시스템
           </div>
 
-          {/* 내용 영역: 남는 높이를 채우도록 flex-1 */}
-          <div className="flex-1 flex flex-col">
+          {/* 내용 영역 */}
+          <div className="flex-1 flex flex-col min-h-0">
             {/* 지도 선택 */}
             <section className="p-2 space-y-2 border-b border-gray-700">
               <div className="block p-2 mb-2 hover:bg-gray-700 rounded">
@@ -73,25 +71,24 @@ export default function ControlSideBar({
               </div>
             </section>
 
-            {/* 차량 관리 (스크롤 영역) */}
-            <section className="px-2 pt-2">
-              <div className="flex items-center justify-between p-2 pr-3 mb-2">
+            {/* 차량 관리 */}
+            <section className="px-2 pt-2 flex-1 min-h-0 flex flex-col">
+              <div className="flex items-center justify-between px-3 py-2 mb-2 font-semibold">
                 <span>차량 목록</span>
-
-                {/* 차량 유형 선택 Select */}
-                <div className="flex items-center gap-2">
-                  <VehicleTypeSelect
-                    typeFilter={typeFilter}
-                    setTypeFilter={setTypeFilter}
-                  />
-                </div>
+                <VehicleTypeSelect
+                  typeFilter={typeFilter}
+                  setTypeFilter={setTypeFilter}
+                />
               </div>
 
-              <VehicleList typeFilter={typeFilter} />
+              {/* 스크롤 가능 영역 */}
+              <div className="flex-1 min-h-0 overflow-y-auto pr-1 space-y-2">
+                <VehicleList typeFilter={typeFilter} />
+              </div>
             </section>
 
             {/* 사건 기록 (하단 고정) */}
-            <section className="mt-auto p-2 border-t border-gray-700">
+            <section className="p-2 border-t border-gray-700 min-h-[120px]">
               <div
                 className="block p-2 mb-2 hover:bg-gray-700 rounded cursor-pointer"
                 onClick={() => nav("logs")}
@@ -106,25 +103,12 @@ export default function ControlSideBar({
             </section>
           </div>
         </nav>
-
-        {/* 사이드바 토글 버튼 */}
-        <button
-          onClick={() => setIsOpen(!isOpen)}
-          className="absolute top-4 right-[-52px] z-50 p-2 bg-white border rounded hover:bg-gray-100 focus:outline-none focus:ring-2 focus:ring-blue-700"
-          aria-label={isOpen ? "사이드바 닫기" : "사이드바 열기"}
-        >
-          {isOpen ? (
-            <X size={20} strokeWidth={3} />
-          ) : (
-            <Menu size={20} strokeWidth={3} />
-          )}
-        </button>
       </div>
     </div>
   );
 }
 
-/* 차량 유형 셀렉트 + 필터링된 리스트 */
+/* 차량 목록 */
 function VehicleList({ typeFilter }: { typeFilter: string }) {
   const activeCars = useVehicleStore((s) => s.activeCars);
 
@@ -134,16 +118,15 @@ function VehicleList({ typeFilter }: { typeFilter: string }) {
   }, [activeCars, typeFilter]);
 
   return (
-    <div className="flex-1 overflow-y-auto min-h-0 pr-1 space-y-2">
+    <>
       {filtered.map((car) => (
         <VehicleListItem key={car.id} car={car} />
       ))}
-    </div>
+    </>
   );
 }
 
 /* 차량 유형 Select */
-// 차량 유형 Select
 function VehicleTypeSelect({
   typeFilter,
   setTypeFilter,

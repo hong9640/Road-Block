@@ -8,6 +8,7 @@ export interface InfoEventModalProps {
   onClose: () => void; // (필수) 닫기 핸들러
   children?: React.ReactNode; // 본문 메시지
   title?: string; // 제목(기본: "알림")
+  autoCloseMs?: number;
 }
 
 export function InfoEventModal({
@@ -15,6 +16,7 @@ export function InfoEventModal({
   onClose,
   children,
   title = "알림",
+  autoCloseMs,
 }: InfoEventModalProps): JSX.Element | null {
   const overlayRef = useRef<HTMLDivElement | null>(null);
   const dialogRef = useRef<HTMLDivElement | null>(null);
@@ -54,6 +56,13 @@ export function InfoEventModal({
     return () => window.removeEventListener("keydown", onKeyDown);
   }, [open, onClose]);
 
+  // 자동 닫기
+  useEffect(() => {
+    if (!open || !autoCloseMs) return;
+    const timer = window.setTimeout(onClose, autoCloseMs);
+    return () => window.clearTimeout(timer);
+  }, [open, autoCloseMs, onClose]);
+
   // Tab 키 포커스 트랩
   const onKeyDown = (e: React.KeyboardEvent) => {
     if (e.key !== "Tab") return;
@@ -86,7 +95,7 @@ export function InfoEventModal({
       ref={overlayRef}
       onMouseDown={onBackdrop}
       aria-hidden="false"
-      className="fixed inset-0 z-50 flex items-center justify-center bg-black/50"
+      className="fixed inset-0 z-50 flex items-center justify-center bg-black/30"
     >
       <div
         ref={dialogRef}
@@ -98,7 +107,7 @@ export function InfoEventModal({
         className="bg-white rounded-lg shadow-lg max-w-md w-full"
       >
         {/* 헤더 */}
-        <div className="flex items-center justify-between mb-4 bg-gray-800 text-white px-4 py-2 rounded-t-lg">
+        <div className="flex items-center justify-between mb-5 bg-gray-800 text-white px-4 py-3 rounded-t-lg">
           <div className="flex items-center gap-2">
             <Info size={22} className="text-white" aria-hidden="true" />
             <h2 id={titleId} className="text-lg font-semibold">
@@ -109,14 +118,18 @@ export function InfoEventModal({
             type="button"
             aria-label="닫기"
             onClick={onClose}
-            className="p-1 rounded hover:bg-blue-500"
+            className="p-1 rounded hover:bg-gray-700"
           >
             <X size={18} className="text-white" />
           </button>
         </div>
 
         {/* 본문 */}
-        {children ? <div className="px-4 pb-4" id={descId}>{children}</div> : null}
+        {children ? (
+          <div className="px-5 pb-5 text-center" id={descId}>
+            {children}
+          </div>
+        ) : null}
       </div>
     </div>,
     portalRoot
