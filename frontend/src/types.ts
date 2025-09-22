@@ -1,30 +1,34 @@
 // Business Types
-
-export type VehicleType = "POLICE" | "RUNNER";
-
-export type Status = "RUN" | "CATCH";
+export type VehicleType = "police" | "runner";
+export type DamageLevel = "normal" | "half_destroyed" | "complete_destroyed";
+export type RunnerStatus = "run" | "catch";
 
 export interface Vehicle {
   id: number;
-  vehicle_id: number;
   car_name: string;
   vehicle_type: VehicleType;
-  created_at: string;       // ISO 8601
+  details: CarDetail | null;
 }
 
-export interface carStatus extends Vehicle {
-  location: [number, number];       // [x, y]
-  status: "NORMAL" | "HALF_DESTROYED" | "COMPELTE_DESTROYED";
+export interface CarDetail {
+  colision_count: number;
   fuel: number;
+  status: DamageLevel;
+}
+
+export interface CarPosition {
+  id: number;
+  posX: number;
+  posY: number;
 }
 
 export interface Log {
   id: number;
-  catcher_id: number;
+  catcher_id: number | null;
   runner_id: number;
-  status: Status;
-  created_at: string;       // ISO 8601
-};
+  status: RunnerStatus;
+  created_at: string; // ISO 8601
+}
 
 export interface Map {
   id: number;

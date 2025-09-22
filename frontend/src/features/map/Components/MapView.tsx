@@ -1,8 +1,9 @@
 // Mapview.tsx
-import { useEffect, useRef } from "react";
-import "ol/ol.css";
+import { useEffect, useMemo, useRef } from "react";
 
-import Map from "ol/Map";
+import "ol/ol.css";
+import { defaults as defaultControls, Zoom } from "ol/control";
+import OLMap from "ol/Map"; // ← OpenLayers Map을 OLMap으로 alias
 import View from "ol/View";
 import Projection from "ol/proj/Projection";
 import { get as getProj } from "ol/proj";
@@ -10,18 +11,25 @@ import { get as getProj } from "ol/proj";
 import VectorLayer from "ol/layer/Vector";
 import VectorSource from "ol/source/Vector";
 import GeoJSON from "ol/format/GeoJSON";
+import {
+  defaults as defaultInteractions,
+  MouseWheelZoom,
+} from "ol/interaction";
 
 import Style from "ol/style/Style";
 import Fill from "ol/style/Fill";
 import Stroke from "ol/style/Stroke";
-
 import {
   buffer as extentBuffer,
   createEmpty,
   extend as extentExtend,
   isEmpty as extentIsEmpty,
 } from "ol/extent";
+
 import { getMapAPI } from "@/Apis";
+import VehicleMarker from "./VehicleMarker";
+import { useVehicleStore } from "@/stores/useVehicleStore";
+import type { CarPosition } from "@/types";
 
 interface MapviewProps {
   mapId: number;
@@ -29,13 +37,22 @@ interface MapviewProps {
 
 export default function Mapview({ mapId }: MapviewProps) {
   const mapEl = useRef<HTMLDivElement | null>(null);
-  const mapRef = useRef<Map | null>(null);
+  const mapRef = useRef<OLMap | null>(null);
+
+  const carsPosition = useVehicleStore((s) => s.carsPosition);
+  const activeCars = useVehicleStore((s) => s.activeCars);
+
+  // id → 위치 매핑 (Record로 구성하여 OL Map과의 이름 충돌 회피)
+  const posById = useMemo<Record<number, CarPosition>>(() => {
+    const acc: Record<number, CarPosition> = {};
+    for (const p of carsPosition) acc[p.id] = p;
+    return acc;
+  }, [carsPosition]);
 
   useEffect(() => {
     if (!mapEl.current) return;
 
     // 1) 로컬 XY 투영(단위 m 가정)
-    // - 등록 후 getProj로 동일 인스턴스 재사용(OL 내부 캐시)
     const code = "SIM:LOCAL";
     let localProj = getProj(code) as Projection | null;
     if (!localProj) {
@@ -53,10 +70,21 @@ export default function Mapview({ mapId }: MapviewProps) {
     });
 
     // 3) 맵 생성 (레이어는 데이터 로딩 후 주입)
-    const map = new Map({
+    const map = new OLMap({
       target: mapEl.current!,
       view: tempView,
       layers: [],
+      controls: defaultControls({ zoom: false }).extend([
+        new Zoom({
+          duration: 400,
+          className: "ol-zoom !top-4 !right-4 !left-auto",
+        }),
+      ]),
+      interactions: defaultInteractions().extend([
+        new MouseWheelZoom({
+          duration: 400, // 애니메이션 부드럽게
+        }),
+      ]),
     });
     mapRef.current = map;
 
@@ -100,7 +128,7 @@ export default function Mapview({ mapId }: MapviewProps) {
         }
 
         // 6) 드래그 제한용 extent (소폭 버퍼)
-        const PAD = 2; // m 가정
+        const PAD = 50; // m 가정
         const limitedExtent = extentBuffer(dataExtent, PAD);
 
         // 투영에도 extent 설정(제약 계산 안정화)
@@ -114,14 +142,11 @@ export default function Mapview({ mapId }: MapviewProps) {
         // 8) 최종 View: 팬/줌 제약 설정
         const finalView = new View({
           projection: localProj!,
-          extent: limitedExtent, // 드래그 제한
+          extent: limitedExtent,
           center: centerNow,
-          resolution: resNow, // 현재 해상도 유지
-          minResolution: resNow / Math.pow(2, 2), // 확대 2단계 허용
-          maxResolution: resNow, // 더 이상 축소 불가
-          smoothExtentConstraint: false,
-          constrainOnlyCenter: false,
-          constrainResolution: true,
+          resolution: resNow,
+          minZoom: 2, // 최소 줌 레벨
+          maxZoom: 20, // 최대 줌 레벨 → 🔑 더 크게 확대 가능
         });
 
         // 9) 최종 View 적용
@@ -129,10 +154,9 @@ export default function Mapview({ mapId }: MapviewProps) {
       })
       .catch((err) => {
         console.error("GeoJSON 로드 실패:", err);
-        // UI alert은 지양—필요 시 상위에서 처리
       });
 
-    // 정리(cleanup): 타겟 해제 및 이벤트/레이어 정리
+    // 정리(cleanup)
     return () => {
       aborted = true;
       map.setTarget(undefined);
@@ -141,13 +165,21 @@ export default function Mapview({ mapId }: MapviewProps) {
   }, [mapId]);
 
   return (
-    <div
-      ref={mapEl}
-      style={{
-        position: "absolute",
-        inset: 0,
-        background: "#d9d9d9", // 밝은 회색 배경
-      }}
-    />
+    <div ref={mapEl} className="w-full h-full relative bg-gray-300">
+      {mapRef.current &&
+        activeCars
+          .map((v) => ({ v, pos: posById[v.id] }))
+          .filter(({ pos }) => !!pos) // 위치가 있는 차량만 렌더
+          .map(({ v, pos }) => (
+            <VehicleMarker
+              key={v.id}
+              id={v.id}
+              posX={pos!.posX}
+              posY={pos!.posY}
+              type={v.vehicle_type}
+              map={mapRef.current}
+            />
+          ))}
+    </div>
   );
 }

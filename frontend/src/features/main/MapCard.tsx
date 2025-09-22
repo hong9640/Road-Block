@@ -40,7 +40,8 @@ const MapCard: React.FC<MapCardProps> = ({
         <img
           src={imgUrl}
           alt={label}
-          loading="lazy"
+          loading="eager"
+          fetchPriority="high"
           decoding="async"
           className={clsx(
             "h-full w-full object-cover",
