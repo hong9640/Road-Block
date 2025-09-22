@@ -28,6 +28,7 @@ push-backend-image:
       changes:
         - backend/**/*
         - .gitlab-ci.yml
+        - default.conf
 
 push-frontend-image:
   stage: push
@@ -45,3 +46,4 @@ push-frontend-image:
       changes:
         - frontend/**/*
         - .gitlab-ci.yml
+        - default.conf
