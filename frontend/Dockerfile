@@ -21,7 +21,7 @@ FROM nginx:1.23-alpine
 # 빌드 스테이지에서 생성된 빌드 결과물을 Nginx 정적 파일 위치로 복사
 COPY --from=builder /app/dist /usr/share/nginx/html
 
-COPY nginx.conf /etc/nginx/nginx.conf
+COPY frontend/nginx.conf /etc/nginx/conf.d/default.conf
 
 # Nginx가 기본적으로 80번 포트를 사용하므로 별도의 EXPOSE 8080은 불필요.
 # Nginx 실행
