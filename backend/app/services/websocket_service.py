@@ -5,6 +5,8 @@ import struct
 import hmac
 import hashlib
 import os
+from datetime import datetime, timezone
+from zoneinfo import ZoneInfo 
 from typing import Tuple, Optional, Dict
 from dotenv import load_dotenv
 
@@ -16,6 +18,9 @@ from app.db import (
 )
 from app.models.enums import VehicleTypeEnum, PoliceCarStatusEnum, EventStatus
 from app.models.models import Vehicle, PoliceCar
+
+# --- 타임존 설정 ---
+KST = ZoneInfo("Asia/Seoul")
 
 # --- 로거 설정 ---
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
@@ -96,7 +101,11 @@ async def handle_vehicle_registration(data: bytes) -> HandlerResult:
 
                 status_enum_map = {status.value: i for i, status in enumerate(EventStatus)}
                 status_int = status_enum_map.get(run_event.status.value, 0)
-                timestamp = run_event.created_at.timestamp()
+                created_at_utc = run_event.created_at.replace(tzinfo=timezone.utc)
+                # KST로 변환합니다.
+                created_at_kst = created_at_utc.astimezone(KST)
+                # 변환된 KST 시간의 timestamp()를 사용합니다.
+                timestamp = created_at_kst.timestamp()
                 front_game_header = struct.pack('<BIBf', MessageType.EVENT_TRACE_START, run_event.runner_id, status_int, timestamp)
                 front_events_dict['front_game_event'] = front_game_header + _calculate_hmac(front_game_header)
                 logging.info(f"[BCAST->FE] 추적 시작({hex(MessageType.EVENT_TRACE_START)}) 이벤트 생성 (runner_id: {run_event.runner_id})")
