@@ -81,8 +81,8 @@ app.add_middleware(GZipMiddleware, minimum_size=1000)
 
 # app.mount("/static", StaticFiles(directory="static"), name="static")
 # --- 라우터 등록 --- 
-app.include_router(map_router.router, prefix="/api")
-app.include_router(vehicle_router.router, prefix="/api")
+app.include_router(map_router.router)
+app.include_router(vehicle_router.router)
 app.include_router(websocket_router.router)
 
 # 시험용
