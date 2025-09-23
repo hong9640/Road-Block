@@ -28,7 +28,7 @@ push-backend-image:
       changes:
         - backend/**/*
         - .gitlab-ci.yml
-        - default.conf
+        - nginx/default.conf
 
 push-frontend-image:
   stage: push
