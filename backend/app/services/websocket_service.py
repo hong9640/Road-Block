@@ -133,7 +133,7 @@ async def handle_location_update(data: bytes) -> HandlerResult:
 
         await save_vehicle_location(db_session, vehicle.id, pos_x, pos_y)
         hardcoded_map_id = 4
-        positions_data = struct.pack('<IIff', hardcoded_map_id, vehicle.id, pos_x, pos_y)
+        positions_data = struct.pack('<Iff', vehicle.id, pos_x, pos_y)
         front_header = struct.pack('<BII', MessageType.POSITION_BROADCAST_2D, hardcoded_map_id, 1)
         front_event_packet = front_header + positions_data + _calculate_hmac(front_header + positions_data)
 
