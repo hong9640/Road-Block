@@ -36,6 +36,10 @@ push-frontend-image:
     - master
     - develop
   script:
+    # GitLab 변수를 사용해 빌드 직전에 frontend/.env 파일을 생성합니다.
+    - echo "VITE_API_BASE=${VITE_API_BASE}" > ./frontend/.env
+    - echo "VITE_WS_BASE=${VITE_WS_BASE}" >> ./frontend/.env
+
     - echo "Building and pushing frontend image..."
     - docker build -t "$IMAGE_LATEST_FRONTEND" -t "$IMAGE_SHA_FRONTEND" -f ./frontend/Dockerfile .
     - docker push "$IMAGE_LATEST_FRONTEND"
