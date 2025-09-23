@@ -3,7 +3,7 @@ stages:
 
 variables:
   # 변수는 이미지 이름을 만드는 데 여전히 필요합니다.
-  PRIVATE_REGISTRY: "52.78.193.190:5000"
+  PRIVATE_REGISTRY: "localhost:5000"
   IMAGE_REPO_BACKEND: "${PRIVATE_REGISTRY}/a507_car"
   IMAGE_SHA_BACKEND: "${IMAGE_REPO_BACKEND}:${CI_COMMIT_SHA}"
   IMAGE_LATEST_BACKEND: "${IMAGE_REPO_BACKEND}:latest"
