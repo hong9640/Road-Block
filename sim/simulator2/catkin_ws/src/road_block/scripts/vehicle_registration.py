@@ -39,7 +39,7 @@ class VehicleRegistrar:
         
         self.sent_once = False
         rospy.Subscriber("/Ego_topic", EgoVehicleStatus, self.on_ego_status)
-        rospy.loginfo(f"차량 등록 대기 중: [이름: {self.car_name}, 타입: {self.vehicle_type}]")
+        #rospy.loginfo(f"차량 등록 대기 중: [이름: {self.car_name}, 타입: {self.vehicle_type}]")
 
     def _calculate_hmac(self, data: bytes) -> bytes:
         return hmac.new(self.secret_key, data, hashlib.sha256).digest()[:16]
@@ -59,13 +59,13 @@ class VehicleRegistrar:
         else:
             vehicle_id = msg.unique_id
         
-        rospy.loginfo(f"차량 ID ({vehicle_id}) 수신. 등록 패킷 전송 시도...")
+        #rospy.loginfo(f"차량 ID ({vehicle_id}) 수신. 등록 패킷 전송 시도...")
         
         pkt = self.build_packet(vehicle_id)
         try:
             ws = websocket.create_connection(self.url, timeout=5)
             ws.send_binary(pkt)
-            rospy.loginfo(f"차량 등록 성공! {len(pkt)} bytes 전송 -> {self.url}")
+            #rospy.loginfo(f"차량 등록 성공! {len(pkt)} bytes 전송 -> {self.url}")
             ws.close()
             self.sent_once = True
             rospy.signal_shutdown("차량 등록 완료. 노드 종료.")

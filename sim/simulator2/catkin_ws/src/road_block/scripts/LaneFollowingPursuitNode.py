@@ -312,7 +312,7 @@ class AggressivePursuitNode:
 
         # 3. 전역 경로 생성 또는 업데이트
         if self.global_path is None or self._should_update_global_path(goal_proj):
-            rospy.loginfo("전역 경로를 재탐색합니다...")
+            #rospy.loginfo("전역 경로를 재탐색합니다...")
             path_seq = self.map_manager.get_global_path(ego_proj, goal_proj, self.REVERSE_DRIVING_PENALTY)
             if path_seq:
                 self.global_path = self._stitch_links_to_path(path_seq, ego_proj)

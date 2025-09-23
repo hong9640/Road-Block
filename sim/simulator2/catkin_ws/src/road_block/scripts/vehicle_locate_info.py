@@ -60,7 +60,7 @@ class LocationUpdater:
         try:
             ws = websocket.create_connection(url, timeout=2)
             ws.send_binary(pkt)
-            rospy.loginfo(f"[LocationUpdater] Sent {len(pkt)} bytes to {url}")
+            #rospy.loginfo(f"[LocationUpdater] Sent {len(pkt)} bytes to {url}")
             ws.close()
         except Exception as e:
             rospy.logwarn(f"[LocationUpdater] WebSocket send failed: {e}")

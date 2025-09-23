@@ -15,11 +15,10 @@ from morai_msgs.msg import CtrlCmd, EgoVehicleStatus, CollisionData
 # --- 설정 ---
 BASE_URL_DEFAULT = "ws://52.78.193.190:8080/ws/vehicles"
 ENV_PATH_DEFAULT = "/home/ubuntu/S13P21A507/sim/simulator2/catkin_ws/.env"
-COMPLETE_DESTROYED_THRESHOLD = 2 # 완전 파손으로 간주할 충돌 횟수
 
 class ChaseManager:
     """
-    두 개의 웹소켓 채널을 동시에 감시하며 추격 시나리오의 시작과 끝을 관리하는 노드.
+    웹소켓 채널을 감시하며 추격 시나리오의 시작과 끝을 관리하는 노드.
     """
     def __init__(self):
         rospy.init_node("chase_manager", anonymous=True)
@@ -37,17 +36,14 @@ class ChaseManager:
 
         # --- 상태 변수 ---
         self.catcher_id = None
-        self.runner_id = None
+        self.runner_id = None # 추격 시작 시 ID가 할당됨
         self.chase_active = False
-        self.fugitive_collision_count = 0
-        self.in_fugitive_collision = False
-        self.catch_event_sent = False
 
         # --- ROS Publisher/Subscriber ---
         self.chase_status_pub = rospy.Publisher("/chase_status", String, queue_size=1, latch=True)
         self.ctrl_pub = rospy.Publisher("/ctrl_cmd", CtrlCmd, queue_size=1, latch=True)
         rospy.Subscriber("/Ego_topic", EgoVehicleStatus, self.ego_status_callback)
-        rospy.Subscriber("/fugitive_collision", CollisionData, self.fugitive_collision_callback)
+        # 도주차량 충돌 구독 로직은 제거됨
 
         # --- 두 개의 웹소켓 리스너 스레드 시작 ---
         # 스레드 1: '/ws/vehicles'에서 추격 시작(0xFF) 이벤트 수신
@@ -60,7 +56,7 @@ class ChaseManager:
         self.catch_event_thread.daemon = True
         self.catch_event_thread.start()
 
-        rospy.loginfo("Chase Manager 시작. 두 채널에서 백엔드 이벤트 수신 대기 중...")
+        rospy.loginfo("Chase Manager 시작. 백엔드 이벤트 수신 대기 중...")
 
     def _calculate_hmac(self, data: bytes) -> bytes:
         return hmac.new(self.secret_key, data, hashlib.sha256).digest()[:16]
@@ -69,25 +65,13 @@ class ChaseManager:
         if self.catcher_id is None and msg.unique_id != 0:
             self.catcher_id = msg.unique_id
             rospy.loginfo(f"추격 차량 ID 확인: {self.catcher_id}")
-
-    def fugitive_collision_callback(self, msg: CollisionData):
-        if not self.chase_active or self.catch_event_sent: return
-        has_collision = len(getattr(msg, 'collision_object', []) or []) > 0
-        if has_collision and not self.in_fugitive_collision:
-            self.fugitive_collision_count += 1
-            rospy.loginfo(f"도주 차량 충돌 감지! (누적: {self.fugitive_collision_count})")
-            if self.fugitive_collision_count >= COMPLETE_DESTROYED_THRESHOLD:
-                rospy.loginfo("도주 차량 완전 파손! 검거 성공!")
-                self._send_catch_event()
-                self.catch_event_sent = True
-        self.in_fugitive_collision = has_collision
     
     def _ws_run_event_listener_thread(self):
         """'/ws/vehicles'에 연결하여 '추격 시작(0xFF)' 이벤트를 기다리는 스레드."""
         ws_url = self.base_url 
         while not rospy.is_shutdown():
             try:
-                rospy.loginfo(f"추격 시작 리스너 연결 시도: {ws_url}")
+                #rospy.loginfo(f"추격 시작 리스너 연결 시도: {ws_url}")
                 ws = websocket.create_connection(ws_url, timeout=10)
                 rospy.loginfo("추격 시작 리스너 연결 성공.")
                 while not rospy.is_shutdown():
@@ -101,7 +85,7 @@ class ChaseManager:
                             self.chase_status_pub.publish("START")
                             rospy.loginfo(f"===== 도주 시작 이벤트 수신! 도주차량 ID: {self.runner_id} =====")
             except Exception as e:
-                rospy.logwarn(f"[Run Event WS] 에러: {e}. 5초 후 재연결...")
+                #rospy.logwarn(f"[Run Event WS] 에러: {e}. 5초 후 재연결...")
                 rospy.sleep(5)
 
     def _ws_catch_broadcast_listener_thread(self):
@@ -109,40 +93,23 @@ class ChaseManager:
         ws_url = self.base_url.replace("/vehicles", "/events")
         while not rospy.is_shutdown():
             try:
-                rospy.loginfo(f"검거 방송 리스너 연결 시도: {ws_url}")
+                #rospy.loginfo(f"검거 방송 리스너 연결 시도: {ws_url}")
                 ws = websocket.create_connection(ws_url, timeout=10)
                 rospy.loginfo("검거 방송 리스너 연결 성공.")
                 while not rospy.is_shutdown():
                     data = ws.recv()
                     if len(data) == 25 and data[0] == 0xFC:
-                        rospy.loginfo(f"[Catch Broadcast] 수신: {data.hex(' ')}")
+                        #rospy.loginfo(f"[Catch Broadcast] 수신: {data.hex(' ')}")
                         _, catcher_id, runner_id = struct.unpack("<BII", data[:9])
                         rospy.loginfo(f"===== 검거 성공 방송 수신! Catcher: {catcher_id}, Runner: {runner_id} =====")
                         if self.chase_active:
-                            self._stop_pursuit()
+                            self._stop_pursuit() # 검거 방송을 수신하면 추격 중지
             except Exception as e:
                 rospy.logwarn(f"[Catch Broadcast WS] 에러: {e}. 5초 후 재연결...")
                 rospy.sleep(5)
 
-    def _send_catch_event(self):
-        """도주 차량 검거 성공(0xFE) 이벤트를 '/ws/events'로 전송합니다."""
-        if self.catcher_id is None or self.runner_id is None:
-            rospy.logwarn("검거 이벤트 전송 실패: ID 정보가 부족합니다.")
-            return
-        header9 = struct.pack("<BII", 0xFE, self.catcher_id, self.runner_id)
-        packet = header9 + self._calculate_hmac(header9)
-        ws_url = self.base_url.replace("/vehicles", "/events")
-        try:
-            rospy.loginfo(f"검거 완료(0xFE) 이벤트 전송 -> {ws_url}")
-            ws = websocket.create_connection(ws_url, timeout=3)
-            ws.send_binary(packet)
-            ws.close()
-            if self.chase_active:
-                self._stop_pursuit()
-        except Exception as e:
-            rospy.logerr(f"검거 이벤트 전송 실패: {e}")
-
     def _stop_pursuit(self):
+        """추격을 중지하고 ROS 토픽으로 STOP 메시지를 발행합니다."""
         if not self.chase_active: return
         rospy.loginfo("추격 중지 명령 발행.")
         self.chase_active = False
