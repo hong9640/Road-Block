@@ -1,0 +1,32 @@
+@reference "tailwindcss";
+
+@layer components {
+  /* Event Table 컨테이너 */
+  .event-table-container {
+    @apply hidden md:block border border-slate-200;
+  }
+  .event-table-scroll {
+    @apply max-h-[70vh] overflow-auto;
+  }
+
+  /* Table */
+  .event-table {
+    @apply min-w-full table-fixed;
+  }
+  .event-table-col-date,
+  .event-table-col-time,
+  .event-table-col-type {
+    @apply w-28;
+  }
+
+  /* Header */
+  .event-table-head {
+    @apply sticky top-0 z-10 bg-white
+           shadow-[0_1px_0_0_rgba(0,0,0,0.06)];
+  }
+  .event-table-head-cell {
+    @apply px-3 py-2 text-center text-slate-600;
+  }
+
+  /* Body row는 EventRow에서 별도 스타일링 */
+}

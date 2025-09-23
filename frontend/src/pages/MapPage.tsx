@@ -5,7 +5,7 @@ export const MapPage: React.FC = () => {
   const mapId = Number(useParams().id);
 
   return (
-    <main style={{ position: "relative", height: "100vh", width: "100%" }}>
+    <main className="page-map">
       <MapView mapId={mapId} />
     </main>
   );

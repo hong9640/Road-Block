@@ -1,0 +1,32 @@
+/* InfoModal */
+@layer components {
+  /* 모달 전체 오버레이 */
+  .modal-overlay {
+    @apply fixed inset-0 z-50 flex items-center justify-center bg-black/30;
+  }
+
+  /* 모달 다이얼로그 */
+  .modal-dialog {
+    @apply bg-white rounded-lg shadow-lg max-w-md w-full;
+  }
+
+  /* 모달 헤더 */
+  .modal-header {
+    @apply flex items-center justify-between mb-5
+           bg-gray-800 text-white px-4 py-3 rounded-t-lg;
+  }
+  .modal-title {
+    @apply text-lg font-semibold;
+  }
+  .modal-header-icon {
+    @apply text-white;
+  }
+  .modal-close-btn {
+    @apply p-1 rounded hover:bg-gray-700;
+  }
+
+  /* 모달 본문 */
+  .modal-body {
+    @apply px-5 pb-5 text-center;
+  }
+}
