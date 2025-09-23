@@ -18,6 +18,8 @@ from app.db import (
 )
 from app.models.enums import VehicleTypeEnum, PoliceCarStatusEnum, EventStatus
 from app.models.models import Vehicle, PoliceCar
+from app.routers.map_router import MAP_METADATA
+
 
 # --- 타임존 설정 ---
 KST = ZoneInfo("Asia/Seoul")
@@ -130,9 +132,9 @@ async def handle_location_update(data: bytes) -> HandlerResult:
             return (_create_ros_error_packet(ErrorCode.INVALID_DATA), None, None)
 
         await save_vehicle_location(db_session, vehicle.id, pos_x, pos_y)
-
-        positions_data = struct.pack('<Iff', vehicle.id, pos_x, pos_y)
-        front_header = struct.pack('<BI', MessageType.POSITION_BROADCAST_2D, 1)
+        hardcoded_map_id = 4
+        positions_data = struct.pack('<IIff', hardcoded_map_id, vehicle.id, pos_x, pos_y)
+        front_header = struct.pack('<BI', MessageType.POSITION_BROADCAST_2D, hardcoded_map_id, 1)
         front_event_packet = front_header + positions_data + _calculate_hmac(front_header + positions_data)
 
         ros_broadcast_event = None

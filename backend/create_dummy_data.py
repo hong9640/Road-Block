@@ -14,10 +14,10 @@ load_dotenv()
 HMAC_SECRET_KEY_STR = os.getenv("HMAC_SECRET_KEY")
 
 # 위치를 업데이트할 차량의 고유 ID (이전에 등록한 도둑 차량의 ID)
-VEHICLE_ID = 9916
+VEHICLE_ID = 123
 
 # 업데이트할 새로운 X, Y 좌표
-POSITION_X = 100.001
+POSITION_X = 90.001
 POSITION_Y = 20.502
 # ---------------------------------------------
 
