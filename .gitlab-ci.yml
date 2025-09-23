@@ -36,6 +36,13 @@ push-frontend-image:
     - master
     - develop
   script:
+      # --- 💡 디버깅용 코드 추가 시작 💡 ---
+    - echo "================================================"
+    - echo "CI/CD 변수 값을 확인합니다."
+    - echo "VITE_API_BASE 변수 값 ---> ${VITE_API_BASE}"
+    - echo "VITE_WS_BASE 변수 값 ---> ${VITE_WS_BASE}"
+    - echo "================================================"
+    # --- 디버깅용 코드 추가 끝 ---
     # GitLab 변수를 사용해 빌드 직전에 frontend/.env 파일을 생성합니다.
     - echo "VITE_API_BASE=${VITE_API_BASE}" > ./frontend/.env
     - echo "VITE_WS_BASE=${VITE_WS_BASE}" >> ./frontend/.env
