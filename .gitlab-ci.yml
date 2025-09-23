@@ -29,7 +29,7 @@ push-backend-image:
         - backend/**/*
         - .gitlab-ci.yml
         - nginx/default.conf
-
+# 프론트엔드
 push-frontend-image:
   stage: push
   tags:
