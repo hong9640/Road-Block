@@ -25,7 +25,7 @@ push-backend-image:
     - docker push "$IMAGE_SHA_BACKEND"
     - echo "Backend CI pipeline finished successfully!"
   rules:
-    - if: '$CI_COMMIT_BRANCH == "be" || $CI_COMMIT_BRANCH == "master" || $CI_COMMIT_BRANCH == "develop"'
+    - if: $CI_COMMIT_BRANCH == "master" || $CI_COMMIT_BRANCH == "develop"'
       changes:
         - backend/**/*
         - .gitlab-ci.yml
@@ -54,7 +54,7 @@ push-frontend-image:
     - docker push "$IMAGE_SHA_FRONTEND"
     - echo "Frontend CI pipeline finished successfully!"
   rules:
-    - if: '$CI_COMMIT_BRANCH == "be" || $CI_COMMIT_BRANCH == "master" || $CI_COMMIT_BRANCH == "develop"'
+    - if: $CI_COMMIT_BRANCH == "master" || $CI_COMMIT_BRANCH == "develop"'
       changes:
         - frontend/**/*
         - .gitlab-ci.yml
