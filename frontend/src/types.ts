@@ -18,6 +18,7 @@ export interface CarDetail {
 
 export interface CarPosition {
   id: number;
+  map_id: number;
   posX: number;
   posY: number;
 }

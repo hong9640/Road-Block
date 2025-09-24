@@ -91,12 +91,7 @@ export function InfoEventModal({
   const portalRoot = document.getElementById("modal-root") ?? document.body;
 
   return createPortal(
-    <div
-      ref={overlayRef}
-      onMouseDown={onBackdrop}
-      aria-hidden="false"
-      className="fixed inset-0 z-50 flex items-center justify-center bg-black/30"
-    >
+    <div ref={overlayRef} onMouseDown={onBackdrop} className="modal-overlay">
       <div
         ref={dialogRef}
         role="dialog"
@@ -104,13 +99,13 @@ export function InfoEventModal({
         aria-labelledby={titleId}
         aria-describedby={descId}
         onKeyDown={onKeyDown}
-        className="bg-white rounded-lg shadow-lg max-w-md w-full"
+        className="modal-dialog"
       >
         {/* 헤더 */}
-        <div className="flex items-center justify-between mb-5 bg-gray-800 text-white px-4 py-3 rounded-t-lg">
+        <div className="modal-header">
           <div className="flex items-center gap-2">
-            <Info size={22} className="text-white" aria-hidden="true" />
-            <h2 id={titleId} className="text-lg font-semibold">
+            <Info size={22} className="modal-header-icon" aria-hidden="true" />
+            <h2 id={titleId} className="modal-title">
               {title}
             </h2>
           </div>
@@ -118,7 +113,7 @@ export function InfoEventModal({
             type="button"
             aria-label="닫기"
             onClick={onClose}
-            className="p-1 rounded hover:bg-gray-700"
+            className="modal-close-btn"
           >
             <X size={18} className="text-white" />
           </button>
@@ -126,7 +121,7 @@ export function InfoEventModal({
 
         {/* 본문 */}
         {children ? (
-          <div className="px-5 pb-5 text-center" id={descId}>
+          <div className="modal-body" id={descId}>
             {children}
           </div>
         ) : null}

@@ -2,7 +2,7 @@
 import MainLanding from "@features/main/MainLanding"
 
 const MainPage: React.FC = () => {
-  return <main className="page p-20 w-100% h-100%">
+  return <main className="page-standard">
     <MainLanding />
     {/* <TestModal /> */}
   </main>;
