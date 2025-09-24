@@ -3,7 +3,7 @@
 @layer components {
   /* 차량 아이템 전체 */
   .vehicle-item {
-    @apply mx-2 mb-2 rounded border border-gray-300 bg-sky-100 text-black;
+    @apply mx-2 mb-2 border border-gray-300 bg-sky-100 text-black;
   }
 
   /* summary 부분 */

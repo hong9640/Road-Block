@@ -169,7 +169,7 @@ export default function Mapview({ mapId }: MapviewProps) {
       {mapRef.current &&
         activeCars
           .map((v) => ({ v, pos: posById[v.id] }))
-          .filter(({ pos }) => !!pos) // 위치가 있는 차량만 렌더
+          .filter(({ pos }) => !!pos && pos.map_id === mapId) // 🔑 현재 mapId와 일치하는 차량만 표시
           .map(({ v, pos }) => (
             <VehicleMarker
               key={v.id}

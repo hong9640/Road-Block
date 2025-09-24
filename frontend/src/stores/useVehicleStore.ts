@@ -7,7 +7,7 @@ interface VehicleState {
 
   getCars: (list: Vehicle[]) => void;
   addCar: (newCar: Vehicle) => void;
-  updatePos: (targetId: number, posX: number, posY: number) => void;
+  updatePos: (targetId: number, map_id:number, posX: number, posY: number) => void;
   updateStatus: (targetId: number, details: CarDetail) => void;
   deleteCar: (targetId: number) => void;
 }
@@ -27,19 +27,19 @@ export const useVehicleStore = create<VehicleState>()((set) => ({
     }),
 
   // 차량 위치 정보 업데이트
-  updatePos: (targetId, posX, posY) =>
+  updatePos: (targetId, map_id, posX, posY) =>
     set((state) => {
       const exists = state.carsPosition.some((car) => car.id === targetId);
       return exists
         ? {
             carsPosition: state.carsPosition.map((car) =>
-              car.id === targetId ? { ...car, posX, posY } : car
+              car.id === targetId ? { ...car, map_id, posX, posY } : car
             ),
           }
         : {
             carsPosition: [
               ...state.carsPosition,
-              { id: targetId, posX, posY }, // 기본 속성 세팅 필요
+              { id: targetId, map_id, posX, posY }, // 기본 속성 세팅 필요
             ],
           };
     }),

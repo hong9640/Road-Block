@@ -16,9 +16,6 @@
 
   /* 상태별 강조색 */
   .event-status-run {
-    @apply bg-yellow-100;
-  }
-  .event-status-catch {
-    @apply bg-green-100;
+    @apply bg-red-100;
   }
 }

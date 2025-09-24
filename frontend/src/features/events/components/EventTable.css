@@ -21,11 +21,11 @@
 
   /* Header */
   .event-table-head {
-    @apply sticky top-0 z-10 bg-white
+    @apply sticky top-0 z-10 bg-gray-800 
            shadow-[0_1px_0_0_rgba(0,0,0,0.06)];
   }
   .event-table-head-cell {
-    @apply px-3 py-2 text-center text-slate-600;
+    @apply px-3 py-2 text-center text-white;
   }
 
   /* Body row는 EventRow에서 별도 스타일링 */
