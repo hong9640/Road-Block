@@ -41,12 +41,10 @@ async def lifespan(app: FastAPI):
     print("--- FastAPI app shutdown. ---")
 
 # FastAPI 앱 인스턴스 생성
-app = FastAPI(lifespan=lifespan)
 app = FastAPI(
+    lifespan=lifespan,
     docs_url="/api/docs",
-    redoc_url="/api/redoc",
-    openapi_url="/api/openapi.json"
-)
+    )
 
 # --- 전역 예외 핸들러 --- 
 @app.exception_handler(APIException)
