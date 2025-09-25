@@ -1,7 +1,4 @@
 # CI/CD 파이프라인
-workflow:
-  rules:
-    - if: '$CI_COMMIT_BRANCH == "master" || $CI_COMMIT_BRANCH == "develop"'
 stages:
   - push
 #변수
