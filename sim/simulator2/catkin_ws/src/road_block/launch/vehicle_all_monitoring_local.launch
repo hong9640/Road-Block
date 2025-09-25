@@ -1,10 +1,5 @@
 <launch>
   <arg name="env_path" default="/home/ubuntu/S13P21A507/sim/simulator2/catkin_ws/.env" />
-  
-  <node pkg="road_block" type="chase_manager.py" name="chase_manager" output="screen" respawn="true">
-    <param name="env_path" value="$(arg env_path)" />
-    <remap from="/fugitive_collision" to="/Ego_2/CollisionData" />
-  </node>
 
   <group ns="police_car_1">
     <node pkg="road_block" type="vehicle_registration.py" name="registration" output="screen">
@@ -28,12 +23,11 @@
       <remap from="/CollisionData" to="/CollisionData" />
     </node>
 
-    <node pkg="road_block" type="LaneFollowingPursuitNode.py" name="pursuit_controller" output="screen">
+    <node pkg="road_block" type="LaneFollowingPursuitNode2.py" name="pursuit_controller" output="screen">
       <remap from="/Ego_topic" to="/Ego_topic" />
       <remap from="/ctrl_cmd" to="/ctrl_cmd" />
       <remap from="/Ego_2/Ego_topic" to="/Ego_2/Ego_topic" />
-      <remap from="/chase_status" to="/chase_status" /> </node>
-
+      <remap from="/chase_status" to="/Ego_0/chase_status" /> </node>
   </group>
 
   <group ns="police_car_2">
@@ -58,12 +52,11 @@
       <remap from="/CollisionData" to="/Ego_3/CollisionData" />
     </node>
 
-    <node pkg="road_block" type="LaneFollowingPursuitNode.py" name="pursuit_controller" output="screen">
+    <node pkg="road_block" type="LaneFollowingPursuitNode2.py" name="pursuit_controller" output="screen">
       <remap from="/Ego_topic" to="/Ego_3/Ego_topic" />
       <remap from="/ctrl_cmd" to="/Ego_3/ctrl_cmd" />
       <remap from="/Ego_2/Ego_topic" to="/Ego_2/Ego_topic" />
-      <remap from="/chase_status" to="/chase_status" /> </node>
-
+      <remap from="/chase_status" to="/Ego_3/chase_status" /> </node>
   </group>
 
   <group ns="police_car_3">
@@ -88,12 +81,11 @@
       <remap from="/CollisionData" to="/Ego_4/CollisionData" />
     </node>
 
-    <node pkg="road_block" type="LaneFollowingPursuitNode.py" name="pursuit_controller" output="screen">
+    <node pkg="road_block" type="LaneFollowingPursuitNode2.py" name="pursuit_controller" output="screen">
       <remap from="/Ego_topic" to="/Ego_4/Ego_topic" />
       <remap from="/ctrl_cmd" to="/Ego_4/ctrl_cmd" />
       <remap from="/Ego_2/Ego_topic" to="/Ego_2/Ego_topic" />
-      <remap from="/chase_status" to="/chase_status" /> </node>
-
+      <remap from="/chase_status" to="/Ego_4/chase_status" /> </node>
   </group>
 
   <group ns="runner_car">
