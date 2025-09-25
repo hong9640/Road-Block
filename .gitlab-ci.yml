@@ -11,7 +11,7 @@ variables:
   IMAGE_REPO_FRONTEND: "${PRIVATE_REGISTRY}/a507_frontend"
   IMAGE_SHA_FRONTEND: "${IMAGE_REPO_FRONTEND}:${CI_COMMIT_SHA}"
   IMAGE_LATEST_FRONTEND: "${IMAGE_REPO_FRONTEND}:latest"
-
+# 백엔드 이미지
 push-backend-image:
   stage: push
   tags:
