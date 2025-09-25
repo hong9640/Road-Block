@@ -17,7 +17,7 @@ HMAC_SECRET_KEY_STR = os.getenv("HMAC_SECRET_KEY")
 VEHICLE_ID = 123
 
 # 업데이트할 새로운 X, Y 좌표
-POSITION_X = 75.001
+POSITION_X = 60.001
 POSITION_Y = 20.502
 # ---------------------------------------------
 
