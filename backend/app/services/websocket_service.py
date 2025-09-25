@@ -9,7 +9,7 @@ from datetime import datetime, timezone
 from zoneinfo import ZoneInfo 
 from typing import Tuple, Optional, Dict
 from dotenv import load_dotenv
-
+from app.tasks import save_location_task
 # --- 최종 확정된 ws_codes 임포트 ---
 from app.common.ws_codes import MessageType, ErrorMessageType, ErrorCode
 from app.db import (
@@ -130,8 +130,9 @@ async def handle_location_update(data: bytes) -> HandlerResult:
         if not vehicle:
             logging.warning(f"[{hex(MessageType.POSITION_BROADCAST)}] vehicle_id({vehicle_id})를 찾을 수 없음")
             return (_create_ros_error_packet(ErrorCode.INVALID_DATA), None, None)
+        
+        save_location_task.delay(vehicle.id, pos_x, pos_y)
 
-        await save_vehicle_location(db_session, vehicle.id, pos_x, pos_y)
         hardcoded_map_id = 4
         positions_data = struct.pack('<Iff', vehicle.id, pos_x, pos_y)
         front_header = struct.pack('<BII', MessageType.POSITION_BROADCAST_2D, hardcoded_map_id, 1)
