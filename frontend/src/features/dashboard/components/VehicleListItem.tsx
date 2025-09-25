@@ -9,10 +9,15 @@ interface VehicleListItemProps {
 
 export default function VehicleListItem({ car }: VehicleListItemProps) {
   const deleteCar = useVehicleStore((s) => s.deleteCar);
+  const setFocusedCarId = useVehicleStore((s) => s.setFocusedCarId);
+  const focusedCarId = useVehicleStore((s) => s.focusedCarId);
 
   const handleDeleteCar = async (id: number) => {
     const res = await deleteVehicleAPI(id);
     if (res && res.status === 204) {
+      if (focusedCarId === id) {
+        setFocusedCarId(null);
+      }
       deleteCar(id);
     }
   };
@@ -23,6 +28,15 @@ export default function VehicleListItem({ car }: VehicleListItemProps) {
         return "경찰";
       case "runner":
         return "용의자";
+    }
+  };
+
+  const handleTrackCar = () => {
+    // 이미 선택된 차량이면 추적 해제
+    if (focusedCarId === car.id) {
+      setFocusedCarId(null);
+    } else {
+      setFocusedCarId(car.id);
     }
   };
 
@@ -50,8 +64,7 @@ export default function VehicleListItem({ car }: VehicleListItemProps) {
         )}
 
         <div className="vehicle-actions">
-          <button className="vehicle-action-btn">추적 시작</button>
-          <button className="vehicle-action-btn">위치 이동</button>
+          <button className="vehicle-action-btn" onClick={handleTrackCar}>{focusedCarId === car.id ? "위치 보기 중지" : "위치 보기"}</button>
           <button
             className="vehicle-action-btn"
             onClick={() => handleDeleteCar(car.id)}

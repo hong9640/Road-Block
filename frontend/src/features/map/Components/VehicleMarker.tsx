@@ -1,6 +1,6 @@
 import { useEffect, useRef } from "react";
 import Overlay from "ol/Overlay";
-import { Map } from "ol";
+import type OLMap from "ol/Map"; // OLMap 타입 명확화
 import type { VehicleType } from "@/types";
 
 interface VehicleMarkerProps {
@@ -8,20 +8,30 @@ interface VehicleMarkerProps {
   posX: number;
   posY: number;
   type: VehicleType;
-  map: Map | null;
+  map?: OLMap | null; // 옵셔널로 변경
 }
 
-export default function VehicleMarker({ id, posX, posY, type, map }: VehicleMarkerProps) {
+export default function VehicleMarker({
+  id,
+  posX,
+  posY,
+  type,
+  map,
+}: VehicleMarkerProps) {
   const elRef = useRef<HTMLDivElement | null>(null);
 
+  // Overlay 생성 & 추가
   useEffect(() => {
-    if (!map) return;
+    if (!map) {
+      console.warn(`VehicleMarker ${id}: map이 없어 마커를 표시하지 못했습니다.`);
+      return;
+    }
 
     // React 관리 밖에서 DOM 생성
     const container = document.createElement("div");
     elRef.current = container;
 
-    // SVG DOM 생성 (보안 친화적으로 createElementNS 사용)
+    // SVG DOM 생성
     const svgNS = "http://www.w3.org/2000/svg";
     const svg = document.createElementNS(svgNS, "svg");
     svg.setAttribute("width", "20");
@@ -46,7 +56,7 @@ export default function VehicleMarker({ id, posX, posY, type, map }: VehicleMark
     svg.appendChild(innerCircle);
     container.appendChild(svg);
 
-    // OpenLayers Overlay 생성 및 추가
+    // Overlay 생성 및 추가
     const overlay = new Overlay({
       element: container,
       positioning: "center-center",
@@ -60,16 +70,15 @@ export default function VehicleMarker({ id, posX, posY, type, map }: VehicleMark
     };
   }, [id, map, type]);
 
+  // 좌표 업데이트
   useEffect(() => {
-    if (map) {
-      const overlay = map
-        .getOverlays()
-        .getArray()
-        .find((o) => o.get("id") === id);
-      overlay?.setPosition([posX, posY]);
-    }
+    if (!map) return;
+    const overlay = map
+      .getOverlays()
+      .getArray()
+      .find((o) => o.get("id") === id);
+    overlay?.setPosition([posX, posY]);
   }, [posX, posY, id, map]);
 
-  // React는 DOM을 렌더링하지 않음
-  return null;
+  return null; // React는 DOM을 직접 렌더링하지 않음
 }

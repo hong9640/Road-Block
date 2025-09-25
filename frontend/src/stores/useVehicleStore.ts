@@ -5,17 +5,25 @@ import { create } from "zustand";
 interface VehicleState {
   activeCars: Vehicle[];
   carsPosition: CarPosition[];
+  focusedCarId: number | null;
 
   getCars: (list: Vehicle[]) => void;
   addCar: (newCar: Vehicle) => void;
-  updatePos: (targetId: number, map_id:number, posX: number, posY: number) => void;
+  updatePos: (
+    targetId: number,
+    map_id: number,
+    posX: number,
+    posY: number
+  ) => void;
   updateStatus: (targetId: number, details: CarDetail) => void;
   deleteCar: (targetId: number) => void;
+  setFocusedCarId: (id: number | null) => void;
 }
 
 export const useVehicleStore = create<VehicleState>()((set) => ({
   activeCars: [],
-  carsPosition: [ ...PosData ],
+  carsPosition: [...PosData],
+  focusedCarId: null,
 
   // 차량 리스트 조회
   getCars: (list) => set(() => ({ activeCars: list })),
@@ -59,4 +67,7 @@ export const useVehicleStore = create<VehicleState>()((set) => ({
       activeCars: state.activeCars.filter((car) => car.id !== targetId),
       carsPosition: state.carsPosition.filter((car) => car.id !== targetId),
     })),
+
+  // 현재 차량 id 기준, 차량 포커스 번호 등록
+  setFocusedCarId: (id) => set({ focusedCarId: id }),
 }));

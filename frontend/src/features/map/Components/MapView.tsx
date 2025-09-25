@@ -41,9 +41,11 @@ export default function Mapview({ mapId }: MapviewProps) {
 
   const carsPosition = useVehicleStore((s) => s.carsPosition);
   const activeCars = useVehicleStore((s) => s.activeCars);
+  const focusedCarId = useVehicleStore((s) => s.focusedCarId);
 
-  // 🚩 맵 준비 여부 상태
+  // 🚩 상태 관리
   const [mapReady, setMapReady] = useState(false);
+  const [mapError, setMapError] = useState<string | null>(null);
 
   // id → 위치 매핑
   const posById = useMemo<Record<number, CarPosition>>(() => {
@@ -55,7 +57,8 @@ export default function Mapview({ mapId }: MapviewProps) {
   useEffect(() => {
     if (!mapEl.current) return;
 
-    setMapReady(false); // 맵 전환 시 초기화
+    setMapReady(false);
+    setMapError(null);
 
     // 1) 로컬 XY 투영
     const code = "SIM:LOCAL";
@@ -110,11 +113,27 @@ export default function Mapview({ mapId }: MapviewProps) {
     getMapAPI(mapId)
       .then((json) => {
         if (aborted) return;
+        if (!json) {
+          setMapError("지도 데이터를 불러올 수 없습니다.");
+          return;
+        }
 
-        const features = fmt.readFeatures(json, {
-          dataProjection: localProj!,
-          featureProjection: localProj!,
-        });
+        let features = [];
+        try {
+          features = fmt.readFeatures(json, {
+            dataProjection: localProj!,
+            featureProjection: localProj!,
+          });
+        } catch (e) {
+          console.error("GeoJSON 파싱 오류:", e);
+          setMapError("지도 데이터 파싱에 실패했습니다.");
+          return;
+        }
+
+        if (features.length === 0) {
+          setMapError("지도 데이터가 비어 있습니다.");
+          return;
+        }
 
         const source = new VectorSource({ features });
         const layer = new VectorLayer({ source, style: styleFn });
@@ -128,7 +147,7 @@ export default function Mapview({ mapId }: MapviewProps) {
         });
 
         if (extentIsEmpty(dataExtent)) {
-          console.warn("데이터 extent가 비어 있습니다.");
+          setMapError("지도 영역이 비어 있습니다.");
           return;
         }
 
@@ -152,11 +171,11 @@ export default function Mapview({ mapId }: MapviewProps) {
 
         map.setView(finalView);
 
-        // ✅ 뷰 세팅 완료 후 마커 표시 가능
         setMapReady(true);
       })
       .catch((err) => {
         console.error("GeoJSON 로드 실패:", err);
+        setMapError("네트워크 오류로 지도를 불러올 수 없습니다.");
       });
 
     // cleanup
@@ -167,13 +186,43 @@ export default function Mapview({ mapId }: MapviewProps) {
     };
   }, [mapId]);
 
+  // 위치 보기 클릭 시, 선택된 차량 추적
+  useEffect(() => {
+    if (!mapReady || !mapRef.current || !focusedCarId) return;
+    const map = mapRef.current;
+    const view = map.getView();
+
+    const pos = posById[focusedCarId];
+    if (!pos) return;
+
+    view.animate({
+      center: [pos.posX, pos.posY],
+      duration: 500,
+    });
+  }, [focusedCarId, posById, mapReady]);
+
+  // 차량 좌표 업데이트 시에도 따라가기
+  useEffect(() => {
+    if (!mapReady || !mapRef.current || !focusedCarId) return;
+    const pos = posById[focusedCarId];
+    if (!pos) return;
+
+    mapRef.current?.getView().setCenter([pos.posX, pos.posY]);
+  }, [focusedCarId, posById, mapReady]);
+
   return (
     <div ref={mapEl} className="w-full h-full relative bg-gray-300">
+      {mapError && (
+        <div className="absolute inset-0 flex items-center justify-center bg-gray-200 text-red-600 font-semibold">
+          {mapError}
+        </div>
+      )}
+
       {mapReady &&
         mapRef.current &&
-        activeCars
+        (activeCars ?? [])
           .map((v) => ({ v, pos: posById[v.id] }))
-          .filter(({ pos }) => !!pos && pos.map_id === mapId)
+          .filter(({ pos }) => pos?.map_id === mapId)
           .map(({ v, pos }) => (
             <VehicleMarker
               key={v.id}
@@ -181,7 +230,7 @@ export default function Mapview({ mapId }: MapviewProps) {
               posX={pos!.posX}
               posY={pos!.posY}
               type={v.vehicle_type}
-              map={mapRef.current}
+              map={mapRef.current ?? undefined} // undefined 허용
             />
           ))}
     </div>
