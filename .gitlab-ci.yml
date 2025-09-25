@@ -1,6 +1,7 @@
 # CI/CD 파이프라인
 stages:
   - push
+
 #변수
 variables:
   # 변수는 이미지 이름을 만드는 데 여전히 필요합니다.
@@ -11,6 +12,7 @@ variables:
   IMAGE_REPO_FRONTEND: "${PRIVATE_REGISTRY}/a507_frontend"
   IMAGE_SHA_FRONTEND: "${IMAGE_REPO_FRONTEND}:${CI_COMMIT_SHA}"
   IMAGE_LATEST_FRONTEND: "${IMAGE_REPO_FRONTEND}:latest"
+
 # 백엔드 이미지
 push-backend-image:
   stage: push
@@ -25,11 +27,12 @@ push-backend-image:
     - docker push "$IMAGE_SHA_BACKEND"
     - echo "Backend CI pipeline finished successfully!"
   rules:
-    - if: '$CI_COMMIT_BRANCH == "master" || $CI_COMMIT_BRANCH == "develop"'
+    - if: "$CI_COMMIT_BRANCH == 'master' || $CI_COMMIT_BRANCH == 'develop'"
       changes:
         - backend/**/*
         - .gitlab-ci.yml
         - nginx/default.conf
+
 # 프론트엔드
 push-frontend-image:
   stage: push
@@ -54,7 +57,7 @@ push-frontend-image:
     - docker push "$IMAGE_SHA_FRONTEND"
     - echo "Frontend CI pipeline finished successfully!"
   rules:
-    - if: $CI_COMMIT_BRANCH == "master" || $CI_COMMIT_BRANCH == "develop"'
+    - if: "$CI_COMMIT_BRANCH == 'master' || $CI_COMMIT_BRANCH == 'develop'"
       changes:
         - frontend/**/*
         - .gitlab-ci.yml
