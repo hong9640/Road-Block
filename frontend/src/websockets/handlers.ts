@@ -66,13 +66,13 @@ export function onVehicle(binaryData: ArrayBuffer) {
     // 차량 상태 정보 업데이트
     case 0x10: {
       const vehicle_id = view.getUint32(1, true);
-      const colision_count = view.getUint8(5);
+      const collision_count = view.getUint8(5);
       const status_enum = view.getUint8(6);
       const fuel = view.getUint8(7);
 
       const status = DAMAGE_LEVEL_MAP[status_enum];
 
-      updateStatus(vehicle_id, { colision_count, status, fuel });
+      updateStatus(vehicle_id, { collision_count, status, fuel });
 
       break;
     }
