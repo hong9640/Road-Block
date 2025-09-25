@@ -15,6 +15,14 @@ export function formatDateYYYYMMDD(iso: string) {
   return `${y}-${m}-${day}`;
 }
 
+export function formatTimeHHMM(iso: string) {
+  // 10:24 (분까지)
+  const d = new Date(iso);
+  const hh = String(d.getHours()).padStart(2, "0");
+  const mm = String(d.getMinutes()).padStart(2, "0");
+  return `${hh}:${mm}`;
+}
+
 export function formatTimeHHMMSS(iso: string) {
   // 10:24:49 (초까지)
   const d = new Date(iso);

@@ -1,3 +1,4 @@
+import { PosData } from "@/lib/datas";
 import type { CarDetail, CarPosition, Vehicle } from "@/types";
 import { create } from "zustand";
 
@@ -14,7 +15,7 @@ interface VehicleState {
 
 export const useVehicleStore = create<VehicleState>()((set) => ({
   activeCars: [],
-  carsPosition: [],
+  carsPosition: [ ...PosData ],
 
   // 차량 리스트 조회
   getCars: (list) => set(() => ({ activeCars: list })),

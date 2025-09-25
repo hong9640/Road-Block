@@ -10,7 +10,7 @@ import { useEventStore } from "@/stores/useEventStore";
 import { getEventListAPI, getVehicleListAPI } from "@/Apis";
 import { mapsData } from "@/lib/datas";
 
-import "./ControlSidebar.css"
+import "./ControlSidebar.css";
 
 export default function ControlSideBar({ isOpen }: DashboardContext) {
   const nav = useNavigate();
@@ -23,12 +23,20 @@ export default function ControlSideBar({ isOpen }: DashboardContext) {
 
   useEffect(() => {
     const fetchCars = async () => {
-      const carList = await getVehicleListAPI();
-      getCars(carList);
+      try {
+        const carList = await getVehicleListAPI();
+        getCars(carList);
+      } catch (e) {
+        console.error("차량 목록 불러오기 실패:", e);
+      }
     };
     const fetchEvents = async () => {
-      const logList = await getEventListAPI();
-      getEvents(logList);
+      try {
+        const logList = await getEventListAPI();
+        getEvents(logList);
+      } catch (e) {
+        console.error("사건 기록 불러오기 실패:", e);
+      }
     };
     fetchCars();
     fetchEvents();
@@ -80,12 +88,19 @@ export default function ControlSideBar({ isOpen }: DashboardContext) {
             {/* 사건 기록 */}
             <section className="logs-section">
               <div className="logs-link" onClick={() => nav("logs")}>
-                사건 기록
+                <span>사건 기록</span>
+                <span className="px-1">〉</span>
               </div>
               <div className="logs-list">
-                {events.slice(0, 3).map((log) => (
-                  <LogListItem key={log.id} log={log} />
-                ))}
+                {Array.isArray(events) && events.length > 0 ? (
+                  events
+                    .slice(0, 3)
+                    .map((log) => <LogListItem key={log.id} log={log} />)
+                ) : (
+                  <div className="text-gray-500 text-sm p-2">
+                    사건 기록이 없습니다.
+                  </div>
+                )}
               </div>
             </section>
           </div>
@@ -100,6 +115,8 @@ function VehicleList({ typeFilter }: { typeFilter: string }) {
   const activeCars = useVehicleStore((s) => s.activeCars);
 
   const filtered = useMemo(() => {
+    if (!Array.isArray(activeCars)) return [];
+
     if (!typeFilter || typeFilter === "all") return activeCars;
 
     // 차량 유형 필터 (경찰, 도주차)
@@ -136,6 +153,10 @@ function VehicleList({ typeFilter }: { typeFilter: string }) {
     return activeCars;
   }, [activeCars, typeFilter]);
 
+  if (!Array.isArray(filtered) || filtered.length === 0) {
+    return <div className="text-gray-500 text-sm p-2">차량이 없습니다.</div>;
+  }
+
   return (
     <>
       {filtered.map((car) => (
@@ -156,6 +177,8 @@ function VehicleTypeSelect({
   const activeCars = useVehicleStore((s) => s.activeCars);
 
   const types = useMemo(() => {
+    if (!Array.isArray(activeCars)) return ["all"];
+
     const set = new Set<string>(
       activeCars.map((c) => c.vehicle_type).filter(Boolean)
     );

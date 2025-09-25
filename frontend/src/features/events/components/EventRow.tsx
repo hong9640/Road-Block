@@ -33,12 +33,12 @@ export default function EventRow({ log }: EventRowProps) {
 
   return (
     <tr className="event-row">
-      <td className={clsx(st.style, "event-cell")}>
+      <td className="event-cell">
         <time dateTime={log.created_at}>
           {formatDateYYYYMMDD(log.created_at)}
         </time>
       </td>
-      <td className={clsx(st.style, "event-cell")}>
+      <td className="event-cell">
         <time dateTime={log.created_at}>
           {formatTimeHHMMSS(log.created_at)}
         </time>
@@ -46,7 +46,7 @@ export default function EventRow({ log }: EventRowProps) {
       <td className={clsx(st.style, "event-cell font-medium")}>
         {st.eventWord}
       </td>
-      <td className={clsx(st.style, "event-cell-detail")}>
+      <td className="event-cell-detail">
         <span className="block truncate sm:whitespace-normal">{st.detail}</span>
       </td>
     </tr>
