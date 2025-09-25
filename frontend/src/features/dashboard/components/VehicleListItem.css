@@ -25,7 +25,7 @@
 
   /* 액션 버튼 영역 */
   .vehicle-actions {
-    @apply pt-2 grid grid-cols-3 gap-2;
+    @apply pt-2 grid grid-cols-2 gap-2;
   }
   .vehicle-action-btn {
     @apply border border-gray-400 rounded px-2 py-1 hover:bg-gray-200;

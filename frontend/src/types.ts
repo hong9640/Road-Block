@@ -11,7 +11,7 @@ export interface Vehicle {
 }
 
 export interface CarDetail {
-  colision_count: number;
+  collision_count: number;
   fuel: number;
   status: DamageLevel;
 }

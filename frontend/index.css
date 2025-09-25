@@ -134,6 +134,10 @@
     width: 100%;
     position: relative;
   }
+
+  .info-text {
+    @apply text-gray-500 text-center;
+  }
 }
 
 body {

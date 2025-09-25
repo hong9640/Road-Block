@@ -28,5 +28,9 @@
     @apply px-3 py-2 text-center text-white;
   }
 
+  .event-table-filter {
+    @apply border rounded px-2 py-1
+  }
+
   /* Body row는 EventRow에서 별도 스타일링 */
 }

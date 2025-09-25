@@ -30,7 +30,7 @@
 
   /* 지도 선택 */
   .map-grid {
-    @apply grid grid-cols-3 p-2 pr-4 gap-4;
+    @apply grid grid-cols-3 p-2 pr-3 gap-4;
   }
   .map-button {
     @apply border p-2 rounded-sm cursor-pointer hover:bg-gray-700;
@@ -52,12 +52,12 @@
 
   /* 사건 기록 */
   .logs-section {
-    @apply p-2 min-h-[120px] border-t border-gray-700;
+    @apply py-2 pl-3 pr-4 min-h-[120px] border-t border-gray-700;
   }
   .logs-link {
-    @apply block p-2 mb-2 rounded hover:bg-gray-700 cursor-pointer;
+    @apply flex p-2 mb-2 hover:bg-gray-700 cursor-pointer justify-between;
   }
   .logs-list {
-    @apply space-y-2;
+    @apply space-y-2 mx-1;
   }
 }
