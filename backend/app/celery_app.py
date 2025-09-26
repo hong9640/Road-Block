@@ -1,7 +1,13 @@
+import os
 from celery import Celery
+from dotenv import load_dotenv
+
+# .env 파일 로드
+load_dotenv()
 
 # Redis 서버 주소
-REDIS_URL = "redis://localhost:6379/0"
+REDIS_HOST = os.getenv("REDIS_HOST", "localhost")
+REDIS_URL = f"redis://{REDIS_HOST}:6379/0"
 
 # Celery 앱 인스턴스 생성
 celery_app = Celery(
