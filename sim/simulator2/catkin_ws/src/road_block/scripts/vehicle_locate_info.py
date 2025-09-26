@@ -13,7 +13,7 @@ from dotenv import load_dotenv
 # -----------------------------
 # 설정
 # -----------------------------
-BASE_URL = "ws://52.78.193.190:8080/ws/vehicles"
+BASE_URL = "wss://j13a507.p.ssafy.io/ws/vehicles"
 ENV_PATH = "/home/ubuntu/S13P21A507/sim/simulator2/catkin_ws/.env"  # 절대경로
 
 # -----------------------------

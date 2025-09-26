@@ -14,7 +14,7 @@ from time import time
 # =============================
 # 설정
 # =============================
-BASE_URL_DEFAULT = "ws://52.78.193.190:8080/ws/vehicles"
+BASE_URL_DEFAULT = "wss://j13a507.p.ssafy.io/ws/vehicles"
 EGO_TOPIC_DEFAULT = "/Ego_topic"
 COLLISION_TOPIC_DEFAULT = "/CollisionData"
 SEND_INTERVAL_SEC_DEFAULT = 1.0

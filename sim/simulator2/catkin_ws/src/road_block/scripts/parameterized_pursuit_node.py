@@ -274,7 +274,7 @@ class AggressivePursuitNode:
 
         goal_proj = self._get_intercept_goal_projection(target_proj)
 
-        # ===> ⭐ [수정 1] 경로 재탐색 로직 수정 <===
+        # 경로 재탐색 로직
         if self.global_path is None or self._should_update_global_path(goal_proj):
             driving_mode = self._determine_driving_mode()
             path_seq = None
@@ -316,7 +316,6 @@ class AggressivePursuitNode:
 
         self.visualizer.update(self.ego_status, self.target_status, self.global_path, self.local_path)
 
-    # ===> ⭐ [수정 2] _stitch_links_to_path 메소드 수정 <===
     def _stitch_links_to_path(self, path_sequence, start_proj, driving_mode):
         points = []
         for i, (link_id, direction) in enumerate(path_sequence):
@@ -338,7 +337,6 @@ class AggressivePursuitNode:
                 
         return self.convert_points_to_ros_path(points)
 
-    # ===> ⭐ [수정 3] calculate_steering 메소드 수정 <===
     def calculate_steering(self, driving_mode='forward'):
         if not self.local_path or not self.local_path.poses:
             return self.last_steering * 0.9
@@ -393,9 +391,6 @@ class AggressivePursuitNode:
                 
         return self.last_steering * 0.9
 
-    #
-    # 나머지 메소드들은 원본 코드와 동일하게 유지합니다.
-    #
     def _get_intercept_goal_projection(self, target_proj):
         dx = self.target_status.position.x - self.ego_status.position.x
         dy = self.target_status.position.y - self.ego_status.position.y

@@ -19,7 +19,7 @@
         <remap from="/CollisionData" to="/CollisionData" />
     </node>
 
-    <node pkg="road_block" type="LaneFollowingPursuitNode.py" name="pursuit_controller_p1" output="screen">
+    <node pkg="road_block" type="LaneFollowingPursuitNode2.py" name="pursuit_controller_p1" output="screen">
         <remap from="/Ego_topic" to="/Ego_topic" />
         <remap from="/ctrl_cmd" to="/ctrl_cmd" />
         <remap from="/Ego_2/Ego_topic" to="/Ego_2/Ego_topic" />
