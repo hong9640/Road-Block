@@ -119,4 +119,4 @@ WebSocket 통신은 두 가지 주요 채널로 구분됩니다:
 | PATCH  | `/vehicles/{id}`        | 특정 차량 정보 수정       |
 | GET    | `/vehicles/events`      | 차량 이벤트 로그 조회     |
 
-각 API의 상세 스펙은 실행 후 `/docs`에서 확인할 수 있습니다.
+각 API의 상세 스펙은 실행 후 `/api/docs`에서 확인할 수 있습니다.
