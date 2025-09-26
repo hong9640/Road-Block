@@ -32,6 +32,8 @@ push-backend-image:
         - backend/**/*
         - .gitlab-ci.yml
         - nginx/default.conf
+        - docker-compose.yml
+
 
 # 프론트엔드
 push-frontend-image:
@@ -62,3 +64,4 @@ push-frontend-image:
         - frontend/**/*
         - .gitlab-ci.yml
         - default.conf
+        - docker-compose.yml
