@@ -1,24 +1,5 @@
 # 경찰차 자율주행 로드블락 시스템 - Frontend
 
-자율주행 경찰차를 통한 도주 차량 실시간 추적/검거 모니터링 시스템입니다.  
-본 프로젝트는 **도주 차량 추적 과정에서 발생하는 경찰 인명 및 재산 피해를 최소화**하기 위해 설계되었습니다.  
-가상 시뮬레이션 환경을 기반으로 차량의 위치·상태·이벤트를 실시간으로 모니터링하며,  
-실제 스마트 모빌리티·교통 관제 시스템 연구에 활용될 수 있는 프로토타입을 목표로 합니다.
-
-## 주요 기능
-
-1. 실시간 차량 위치 추적
-   - WebSocket을 통한 실시간 차량 위치 업데이트
-   - OpenLayers 지도 상 마커 표시
-
-2. 차량 상태 모니터링
-   - 연료량, 파손상태 등 실시간 상태 확인
-   - 차량별 필터링 및 검색
-
-3. 이벤트 로깅
-   - 도주/검거 등 주요 이벤트 실시간 알림
-   - 이벤트 히스토리 조회
-
 ## 실행 방법
 
 ### 개발 환경
@@ -39,6 +20,15 @@ npm run preview
 
 ```bash
 docker compose up --build
+```
+
+## 환경 변수
+ - `VITE_API_BASE` : 백엔드 API 주소
+ - `VITE_WS_BASE` : WebSocket 서버 주소
+
+```
+VITE_API_BASE=http://api.example.com
+VITE_WS_BASE=ws://ws.example.com
 ```
 
 ## 기술 스택
@@ -113,15 +103,6 @@ frontend/
 │
 ├── vite.config.ts       # Vite 설정
 └── tsconfig.json        # TypeScript 설정
-```
-
-## 환경 변수
- - `VITE_API_BASE` : 백엔드 API 주소
- - `VITE_WS_BASE` : WebSocket 서버 주소
-
-```
-VITE_API_BASE=http://api.example.com
-VITE_WS_BASE=ws://ws.example.com
 ```
 
 ## 브라우저 지원
