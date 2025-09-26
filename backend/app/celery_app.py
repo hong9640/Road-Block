@@ -1,5 +1,3 @@
-# app/celery_app.py (신규 파일)
-
 from celery import Celery
 
 # Redis 서버 주소

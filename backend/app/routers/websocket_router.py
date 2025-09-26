@@ -7,14 +7,8 @@ from typing import List
 from fastapi import APIRouter, WebSocket, WebSocketDisconnect
 
 # --- 프로젝트 내부 모듈 ---
-from sqlalchemy import select
-from sqlalchemy.orm import selectinload
-from app.models import models
 from app.common.ws_codes import MessageType
-from app.db import AsyncSessionMaker, get_all_vehicles
-from app.models.enums import VehicleTypeEnum, PoliceCarStatusEnum, EventStatus
 from app.services import websocket_service
-from app.services.websocket_service import _calculate_hmac
 
 # --- 1. 파일 로거 설정 ---
 event_log = logging.getLogger('event_broadcast_logger')
@@ -112,7 +106,6 @@ async def websocket_ros_vehicles(websocket: WebSocket):
                     if 'front_game_event' in front_events:
                         event_packet = front_events['front_game_event']
                         try:
-                            # <BIBf -> type(1), id(4), status(1), timestamp(4) = 10바이트
                             _, runner_id, status_int, _ = struct.unpack('<BIBf', event_packet[:10])
                             event_log.info(f"BROADCAST EVENT [TRACE_START]: runner_id={runner_id}")
                         except struct.error:
@@ -121,10 +114,8 @@ async def websocket_ros_vehicles(websocket: WebSocket):
 
             elif message_type == MessageType.POSITION_BROADCAST:
                 ros_response, front_events, ros_broadcast = await websocket_service.handle_location_update(data)
-                # 차량 위치 정보
                 if front_events and 'front_vehicle_event' in front_events:
                     await vehicle_manager.broadcast_to_front(front_events['front_vehicle_event'])
-                    # await event_manager.broadcast_to_front(front_events['front_vehicle_event'])
             
             elif message_type == MessageType.STATUS_UPDATE_REQUEST:
                 ros_response, front_events, ros_broadcast = await websocket_service.handle_vehicle_status_update(data)
@@ -156,7 +147,6 @@ async def websocket_ros_events(websocket: WebSocket):
                     await websocket.send_bytes(ros_response)
                 if front_broadcast:
                     try:
-                        # <BII -> type(1), catcher_id(4), runner_id(4) = 9바이트
                         msg_type, catcher_id, runner_id = struct.unpack('<BII', front_broadcast[:9])
                         log_event_type = "CATCH" if msg_type == MessageType.EVENT_CATCH else "FAILED"
                         event_log.info(f"BROADCAST EVENT [{log_event_type}]: catcher_id={catcher_id}, runner_id={runner_id}")

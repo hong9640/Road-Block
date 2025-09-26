@@ -16,7 +16,6 @@ class VehicleBase(BaseModel):
 
 class VehicleResponse(VehicleBase):
     id: int = Field(..., description="The business identifier for the vehicle", example=1)
-    # PoliceCarDetails는 POLICE 타입 차량에만 존재하므로 Optional
     details: Optional[PoliceCarDetails] = None
 
     class Config:
@@ -27,9 +26,6 @@ class VehicleListResponse(BaseModel):
 
 
 class VehicleUpdate(BaseModel):
-    """
-    Schema for the PATCH request body to update a vehicle's car name.
-    """
     car_name: str = Field(..., max_length=50, example="Police-03")
 
 class EventResponse(BaseModel):
@@ -43,10 +39,8 @@ class EventResponse(BaseModel):
     @classmethod
     def convert_to_kst(cls, v: datetime) -> datetime:
         if isinstance(v, datetime):
-            # DB에서 온 시간이 timezone 정보가 없다면 UTC로 지정
             if v.tzinfo is None:
                 v = v.replace(tzinfo=timezone.utc)
-            # KST로 변환하여 반환
             return v.astimezone(KST)
         return v
 

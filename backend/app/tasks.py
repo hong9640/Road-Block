@@ -1,4 +1,4 @@
-# app/tasks.py (신규 파일)
+# app/tasks.py
 
 from app.celery_app import celery_app
 from app.db_sync import SessionMaker 

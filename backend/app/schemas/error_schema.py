@@ -1,5 +1,3 @@
-# models/error.py (파일을 분리하는 것을 추천)
-
 from pydantic import BaseModel
 
 class ErrorMessage(BaseModel):
