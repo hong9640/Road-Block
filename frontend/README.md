@@ -1,6 +1,9 @@
 # 경찰차 자율주행 로드블락 시스템 - Frontend
 
-자율주행 경찰차를 통한 도주 차량 실시간 추적/검거 모니터링 시스템입니다.
+자율주행 경찰차를 통한 도주 차량 실시간 추적/검거 모니터링 시스템입니다.  
+본 프로젝트는 **도주 차량 추적 과정에서 발생하는 경찰 인명 및 재산 피해를 최소화**하기 위해 설계되었습니다.  
+가상 시뮬레이션 환경을 기반으로 차량의 위치·상태·이벤트를 실시간으로 모니터링하며,  
+실제 스마트 모빌리티·교통 관제 시스템 연구에 활용될 수 있는 프로토타입을 목표로 합니다.
 
 ## 주요 기능
 
@@ -40,32 +43,30 @@ docker compose up --build
 
 ## 기술 스택
 
-- 언어: TypeScript
-- 프레임워크: React
-- 빌드도구: Vite
-- 스타일링: Tailwind CSS
-- 코드품질: ESLint
-
-## 사용 라이브러리
-
-- **Core** : 
-  - React 19
+- **언어 및 프레임워크**
   - TypeScript
-  - Vite (프로젝트 관리)
+  - React
+  - Vite (빌드/번들링)
 
-- **상태관리**
+- **상태 관리**
   - Zustand
 
-- **스타일링**
-  - Tailwind CSS (빠른 스타일링 라이브러리)
+- **스타일링 및 UI**
+  - Tailwind CSS
   - Lucide React (아이콘)
 
-- **지도**
-  - OpenLayers (가상 시뮬레이션 맵 렌더링)
+- **지도 렌더링**
+  - OpenLayers
 
 - **통신**
-  - Axios (비동기 처리)
-  - WebSocket (Native, 실시간 통신)
+  - Axios (REST API)
+  - WebSocket (실시간 통신)
+
+- **품질 관리**
+  - ESLint (코드 품질 검사)
+
+- **운영/배포**
+  - Docker (컨테이너 실행)
 
 ## 폴더 구조
 
@@ -116,13 +117,23 @@ frontend/
 ```
 
 ## 환경 변수
+ - `VITE_API_BASE` : 백엔드 API 주소
+ - `VITE_WS_BASE` : WebSocket 서버 주소
 
 ```
-VITE_API_BASE=백엔드 API 주소
-VITE_WS_BASE=WebSocket 서버 주소
+VITE_API_BASE=http://api.example.com
+VITE_WS_BASE=ws://ws.example.com
 ```
 
 ## 브라우저 지원
 
-- 최신 버전의 Chrome, Firefox, Safari, Edge 지원
-- WebSocket, ES2023 기능 지원 필요
+본 프로젝트는 최신 ECMAScript(ES2023) 기능과 WebSocket API를 활용합니다.  
+따라서 다음 환경에서의 실행을 보장합니다:
+
+- Chrome (최신 버전)
+- Firefox (최신 버전)
+- Safari (최신 버전)
+- Edge (최신 버전)
+
+⚠️ Internet Explorer 및 구형 브라우저는 지원하지 않습니다.  
+구형 브라우저 호환이 필요할 경우, polyfill 설정 또는 `.browserslistrc` 구성을 추가해야 합니다.
