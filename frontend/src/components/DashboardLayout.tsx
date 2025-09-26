@@ -1,4 +1,4 @@
-import { Menu, X } from "lucide-react";
+import { ArrowLeftToLine, ArrowRightFromLine } from "lucide-react";
 import { useEffect, useState, type ReactNode } from "react";
 import { Outlet } from "react-router-dom";
 
@@ -60,9 +60,9 @@ export default function DashboardLayout({ sidebar }: DashboardLayoutProps) {
         aria-label={isOpen ? "사이드바 닫기" : "사이드바 열기"}
       >
         {isOpen ? (
-          <X size={20} strokeWidth={3} />
+          <ArrowLeftToLine size={20} strokeWidth={3} />
         ) : (
-          <Menu size={20} strokeWidth={3} />
+          <ArrowRightFromLine size={20} strokeWidth={3} />
         )}
       </button>
     </div>
