@@ -23,7 +23,7 @@ DB_PORT=3306
 DB_USERNAME=user
 DB_PASSWORD=password
 DB_NAME=dbname
-DB_SSL_CONFIG={"ssl_ca": "/path/to/ca.pem"} # 선택사항
+DB_SSL_CONFIG = '{"ssl_true": true}'
 HMAC_SECRET_KEY=your_secret_key
 ```
 
