@@ -1,99 +1,138 @@
-## 1. 사용한 기술 스택
+# 경찰차 자율주행 로드블락 시스템 - Frontend
 
-- React
-- Vite
-- GeoJson
-- Zustand
-- IndexedDB
+자율주행 경찰차를 통한 도주 차량 실시간 추적/검거 모니터링 시스템입니다.  
+본 프로젝트는 **도주 차량 추적 과정에서 발생하는 경찰 인명 및 재산 피해를 최소화**하기 위해 설계되었습니다.  
+가상 시뮬레이션 환경을 기반으로 차량의 위치·상태·이벤트를 실시간으로 모니터링하며,  
+실제 스마트 모빌리티·교통 관제 시스템 연구에 활용될 수 있는 프로토타입을 목표로 합니다.
 
+## 주요 기능
 
-## 2. 폴더 구조
-```
-src/
- ├─ assets/                  # 이미지, 아이콘, 스타일 등 정적 자원
- │
- ├─ components/              # Atomic Design 기반 공통 UI 컴포넌트
- │   ├─ atoms/
- │   │   ├─ SmallBtn.tsx
- │   │   ├─ CircleBtn.tsx
- │   │   └─ Marker.tsx       # 차량 Marker 공통 스타일
- │   │
- │   ├─ molecules/           # 입력창, 카드, 리스트 아이템 등
- │   │   ├─ LogListItem.tsx         # Side Panel 사건 기록 Item
- │   │   └─ VehicleListItem.tsx     # Side Panel 경찰 차량 정보 Item
- │   │
- │   ├─ organisms/           # 지도 UI, 로그 테이블, 대시보드 레이아웃 등 (Layout 위주)
- │   │   ├─ MapView.tsx             # 공통 Map UI Section
- │   │   ├─ EventTable.tsx          # 사건 기록 모음 Page 오른쪽 Section,
- │   │   └─ DashboardLayout.tsx     # 대시보드 Page 왼쪽 Section
- │   │
- │   └─ templates/           # 페이지 공통 레이아웃
- │       └─ MainTemplate.tsx        # 대시보드 전환 관련 공통 Layout
- │
- ├─ features/                # 도메인/기능 단위 폴더
- │   ├─ main/                # 메인 페이지
- │   │   ├─ MainLanding.tsx
- │   │   ├─ MapCards.ts             
- │   │   └─ navLinks.ts             
- │   │ 
- │   ├─ map/                 # 지도 관련 기능
- │   │   ├─ VehicleMarker.tsx       # 차량 표시 특화 Marker
- │   │   ├─ useMapData.ts           # 차량 위치 데이터 (WS) 반영
- │   │   └─ smoothing.ts            # 차량 위치 UI Jumping 방지용 Logic
- │   │
- │   ├─ dashboard/           # 관제/일반 전환 대시보드
- │   │   ├─ ControlSidebar.tsx 
- │   │   ├─ useDashboardState.ts    # 대시보드 필터
- │   │   └─ modeSwitch.ts           
- │   │
- │   └─ events/              # 사건 로그 조회/필터
- │       ├─ EventRow.tsx
- │       ├─ useEventData.ts
- │       └─ formatEvent.ts
- │
- ├─ pages/                   # 최종 라우팅 단위 페이지
- │   ├─ MapPage.tsx          # 지도 페이지
- │   ├─ DashboardPage.tsx    # 관제 대시보드 페이지 (전환 기능 포함)
- │   ├─ MainPage.tsx         # 사이트 진입 시 메인 화면
- │   └─ EventsPage.tsx       # 사건 로그 페이지
- │
- │
- └─ utils/                   # 전역 유틸 함수
-     ├─ api.ts
-     └─ WSconnection.ts      # WS 연결 관리 모듈
+1. 실시간 차량 위치 추적
+   - WebSocket을 통한 실시간 차량 위치 업데이트
+   - OpenLayers 지도 상 마커 표시
+
+2. 차량 상태 모니터링
+   - 연료량, 파손상태 등 실시간 상태 확인
+   - 차량별 필터링 및 검색
+
+3. 이벤트 로깅
+   - 도주/검거 등 주요 이벤트 실시간 알림
+   - 이벤트 히스토리 조회
+
+## 실행 방법
+
+### 개발 환경
+
+```bash
+npm install
+npm run dev
 ```
 
-1. `features/[name]/hooks/` **(커스텀 훅 전용)**
+### 프로덕션 빌드
 
-    특정 **기능(Feature)**에 밀접하게 관련된 상태 관리 + 비즈니스 로직을 캡슐화합니다. <br>
-    React의 `useState` , `useEffect` , `useMemo` 등을 조합해서 UI와 분리된 재사용 가능한 로직을 만듭니다. <br>
-    네이밍은 반드시 `useSomething.ts` 로 시작합니다.
+```bash
+npm run build
+npm run preview
+```
 
-    - `useMapData.ts`
-    → WebSocket을 통해 차량 위치 데이터를 받아오고, 가공 후 반환.
-    - `useDashboardState.ts`
-    → 대시보드의 필터(차량 선택, 시간 범위 등) 상태 관리.
-    - `useEventData.ts`
-    → API에서 사건 로그를 불러와 상태로 관리, Pagenation 로직 포함.
+### Docker 실행
 
-2. `features/[name]/utils/` (순수 유틸 함수)
+```bash
+docker compose up --build
+```
 
-    특정 Feature에서만 사용하는 순수 함수(Pure Function) 모음입니다. <br>
-    React에 의존하지 않고, 입력값 → 출력값을 만드는 가벼운 로직이 여기에 작성됩니다. 훅 안/밖 어디서든 호출 가능합니다.
+## 기술 스택
 
-    - `smoothing.ts`
-    → 차량 위치 데이터의 오차를 보정하는 스무딩 알고리즘.
-    - `modeSwitch.ts`
-    → 일반 모드 ↔ 관제 모드 전환 시 필요한 데이터 변환 함수.
-    - `formatEvent.ts`
-    → 사건 로그의 날짜, 이벤트 타입을 보기 좋은 문자열로 변환.
+- **언어 및 프레임워크**
+  - TypeScript
+  - React
+  - Vite (빌드/번들링)
 
-## 3. 사용된 지도 이름
-| 지도명           | 실제/가상 | 대응 지명 및 설명                                       |
-| ------------- | ----- | ------------------------------------------------ |
-| **K-City**    | 실제    | 경기도 화성시, 한국교통안전공단 자동차안전연구원 내 자율주행 테스트베드          |
-| **상암동**    | 실제    | 서울 마포구 상암동 DMC, 자율주행 시범운행지구                      |
-| **세종BRT**   | 실제    | 세종특별자치시 간선급행버스체계, 자율주행 셔틀 실증 지역                  |
-| **GreenCity** | 가상    | (KATRI 기반) 충북 음성 차량 안전 연구소 → 친근한 “안전·친환경 도시” 이미지 |
-| **TechTown**  | 가상    | (KIAPI 기반) 전북 군산 자동차 부품 지원 기관 → “기술·혁신 마을” 이미지   |
-| **ExpoHall**  | 가상    | (LVCC 기반) 해외 전시장 → 국내 시연 맥락에 맞춘 “전시·체험 공간” 이미지   |
+- **상태 관리**
+  - Zustand
+
+- **스타일링 및 UI**
+  - Tailwind CSS
+  - Lucide React (아이콘)
+
+- **지도 렌더링**
+  - OpenLayers
+
+- **통신**
+  - Axios (REST API)
+  - WebSocket (실시간 통신)
+
+- **품질 관리**
+  - ESLint (코드 품질 검사)
+
+- **운영/배포**
+  - Docker (컨테이너 실행)
+
+## 폴더 구조
+
+```
+frontend/
+├── public/                # 정적 파일 디렉토리
+│   ├── vite.svg          
+│   └── image/            # 지도 이미지 리소스
+│
+├── src/
+│   ├── components/       # 공통 컴포넌트
+│   │   ├── DashboardLayout.tsx    # 대시보드 레이아웃 
+│   │   ├── InfoEventModal.tsx     # 이벤트 알림 모달
+│   │   └── TestModal.tsx          # 모달 테스트용
+│   │
+│   ├── features/         # 주요 기능별 컴포넌트
+│   │   ├── dashboard/    # 대시보드 관련 컴포넌트
+│   │   │   └── components/
+│   │   │       ├── ControlSidebar.tsx    # 차량 목록 및 필터링 사이드바
+│   │   │       ├── VehicleListItem.tsx   # 개별 차량 정보 표시 컴포넌트
+│   │   │       └── LogListItem.tsx       # 로그 항목 표시 컴포넌트
+│   │   │
+│   │   ├── events/       # 이벤트 로그 관련 컴포넌트
+│   │   │   └── components/
+│   │   │       ├── EventTable.tsx        # 이벤트 로그 테이블 컴포넌트
+│   │   │       └── EventRow.tsx          # 개별 이벤트 로그 행 컴포넌트
+│   │   │
+│   │   ├── main/        # 메인 페이지 관련 컴포넌트
+│   │   │   ├── MainLanding.tsx          # 메인 랜딩 페이지 컴포넌트
+│   │   │   ├── MapCard.tsx              # 지도 선택 카드 컴포넌트
+│   │   │
+│   │   └── map/         # 지도 관련 컴포넌트
+│   │       └── Components/
+│   │           ├── MapView.tsx           # OpenLayers 기반 지도 뷰 컴포넌트
+│   │           └── VehicleMarker.tsx     # 차량 위치 마커 컴포넌트
+│   │
+│   ├── utils/           # 유틸리티 함수 (시간 관련 UI 표시 정의)
+│   ├── stores/          # Zustand 상태관리
+│   ├── pages/           # 라우팅 페이지 컴포넌트
+│   ├── styles/          # 공통 컴포넌트 CSS 스타일
+│   ├── types.ts         # TypeScript 타입 정의
+│   ├── websockets/      # WebSocket 통신 관련
+│   └── Apis.ts          # axios 활용 HTTP API 통신
+│
+├── vite.config.ts       # Vite 설정
+└── tsconfig.json        # TypeScript 설정
+```
+
+## 환경 변수
+ - `VITE_API_BASE` : 백엔드 API 주소
+ - `VITE_WS_BASE` : WebSocket 서버 주소
+
+```
+VITE_API_BASE=http://api.example.com
+VITE_WS_BASE=ws://ws.example.com
+```
+
+## 브라우저 지원
+
+본 프로젝트는 최신 ECMAScript(ES2023) 기능과 WebSocket API를 활용합니다.  
+따라서 다음 환경에서의 실행을 보장합니다:
+
+- Chrome (최신 버전)
+- Firefox (최신 버전)
+- Safari (최신 버전)
+- Edge (최신 버전)
+
+⚠️ Internet Explorer 및 구형 브라우저는 지원하지 않습니다.  
+구형 브라우저 호환이 필요할 경우, polyfill 설정 또는 `.browserslistrc` 구성을 추가해야 합니다.
