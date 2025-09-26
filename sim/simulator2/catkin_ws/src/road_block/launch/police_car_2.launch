@@ -1,6 +1,7 @@
 <launch>
     <arg name="env_path" default="/home/ubuntu/S13P21A507/sim/simulator2/catkin_ws/.env" />
 
+  <group ns="police_car_2">
     <node pkg="road_block" type="vehicle_registration.py" name="registration_p2" output="screen">
         <param name="car_name" value="POLICE_2" />
         <param name="vehicle_type" value="0" />
@@ -27,4 +28,12 @@
         <remap from="/ctrl_cmd" to="/Ego_3/ctrl_cmd" />
         <remap from="/Ego_2/Ego_topic" to="/Ego_2/Ego_topic" />
     </node>
+    <node pkg="road_block" type="chase_manager.py" name="chase_manager_p2" output="screen" respawn="true">
+        <param name="env_path" value="$(arg env_path)" />
+        <remap from="/Ego_topic" to="/Ego_3/Ego_topic" />
+        <remap from="/ctrl_cmd" to="/Ego_3/ctrl_cmd" />
+        <remap from="/fugitive_collision" to="/Ego_2/CollisionData" />
+    </node>
+  </group>    
+
 </launch>
