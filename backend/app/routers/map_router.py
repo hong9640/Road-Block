@@ -4,11 +4,9 @@ from fastapi.responses import FileResponse
 
 # --- 상수 및 라우터 설정 ---
 
-# 'app/maps' 디렉토리에 맵 데이터가 있다고 가정합니다.
 MAP_DATA_BASE_PATH = Path("app/maps/")
 
 # DB를 대신하는 간단한 맵 정보
-# 각 폴더 안에는 미리 처리된 'merged_road_surfaces.geojson' 파일이 있어야 합니다.
 MAP_METADATA = {
     1: {"folder_name": "R_KR_PG_K-City", "map_name": "K-City"},
     2: {"folder_name": "R_KR_PG_KATRI", "map_name": "KATRI"},
@@ -62,6 +60,5 @@ async def get_map_geojson_by_id(map_id: int):
             detail=f"맵의 GeoJSON 파일을 찾을 수 없습니다 (Path: {geojson_file_path}). 데이터 사전 처리 과정이 필요합니다.",
         )
 
-    # FileResponse를 사용하여 파일을 효율적으로 반환합니다.
     return FileResponse(path=geojson_file_path, media_type="application/json")
 

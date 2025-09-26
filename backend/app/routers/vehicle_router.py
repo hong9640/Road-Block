@@ -1,13 +1,10 @@
 from fastapi import APIRouter, Depends, status, Path
 from starlette.responses import Response
 from sqlalchemy.ext.asyncio import AsyncSession
-# 라우터
-# Import schemas, async service functions
+
 from app.schemas import vehicle_schema
 from app.services import vehicle_service
-# Import get_session from the provided db.py
 from app.db import get_session
-# Corrected import path for models as seen in db.py
 from app.models.models import Vehicle
 
 router = APIRouter(
@@ -15,7 +12,7 @@ router = APIRouter(
     tags=["Vehicles"],
 )
 
-# --- Helper function for response mapping ---
+# --- Helper 함수 ---
 
 def map_vehicle_to_response(vehicle: Vehicle) -> vehicle_schema.VehicleResponse:
     response_data = vehicle_schema.VehicleResponse.model_validate(vehicle)
@@ -23,7 +20,7 @@ def map_vehicle_to_response(vehicle: Vehicle) -> vehicle_schema.VehicleResponse:
         response_data.details = vehicle.police_car
     return response_data
 
-# --- API Endpoints (all async) ---
+# --- API ---
 
 @router.get(
     "",
@@ -44,7 +41,6 @@ async def list_vehicle_events(db: AsyncSession = Depends(get_session)):
     events_data = await vehicle_service.get_all_vehicle_events(db)
     return {"events": events_data}
 
-# 차량 조회
 @router.get(
     "/{id}",
     response_model=vehicle_schema.VehicleResponse,
