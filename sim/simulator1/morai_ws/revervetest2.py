@@ -182,19 +182,19 @@ class AggressivePursuitNode:
     """
     def __init__(self):
         rospy.init_node("aggressive_pursuit_node", anonymous=True)
-        map_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), "R_KR_PR_Sangam_NoBuildings")
+        map_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), "map_data")
         self.map_manager = HDMapManager(map_dir)
 
         # === 역할만 교체: ego-0(추격자), ego-2(표적) ===
         self.pursuer_status, self.target_status = None, None
         self.data_lock = threading.Lock() # 스레드 안전성 확보를 위한 락 추가
-        rospy.Subscriber("/Ego_topic",       EgoVehicleStatus, self.pursuer_status_callback)  # ego-0: 추격자
-        rospy.Subscriber("/Ego-2/Ego_topic", EgoVehicleStatus, self.target_status_callback)   # ego-2: 표적
+        rospy.Subscriber("/Ego_4/Ego_topic",       EgoVehicleStatus, self.pursuer_status_callback)  # ego-0: 추격자
+        rospy.Subscriber("/Ego_2/Ego_topic", EgoVehicleStatus, self.target_status_callback)   # ego-2: 표적
 
         # === 제어 대상: ego-0 ===
         self.g_path_pub = rospy.Publisher('/global_path', Path, queue_size=1)
         self.l_path_pub = rospy.Publisher('/local_path', Path, queue_size=1)
-        self.ctrl_pub   = rospy.Publisher('/ctrl_cmd', CtrlCmd, queue_size=1)  # ego-0 제어
+        self.ctrl_pub   = rospy.Publisher('/Ego_4/ctrl_cmd', CtrlCmd, queue_size=1)  # ego-0 제어
 
         self.global_path, self.local_path = None, None
         self.last_steering = 0.0
