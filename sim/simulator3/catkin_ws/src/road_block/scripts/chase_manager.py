@@ -13,8 +13,8 @@ from std_msgs.msg import String
 from morai_msgs.msg import CtrlCmd, EgoVehicleStatus, CollisionData
 
 # --- 설정 ---
-BASE_URL_DEFAULT = "ws://52.78.193.190:8080/ws/vehicles"
-ENV_PATH_DEFAULT = "/home/ubuntu/S13P21A507/sim/simulator2/catkin_ws/.env"
+BASE_URL_DEFAULT = "wss://j13a507.p.ssafy.io/ws/vehicles"
+ENV_PATH_DEFAULT = "/home/ubuntu20/S13P21A507/sim/simulator3/catkin_ws/.env"
 
 class ChaseManager:
     """

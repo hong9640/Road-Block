@@ -14,7 +14,7 @@ from time import time
 # =============================
 # 설정
 # =============================
-BASE_URL_DEFAULT = "ws://52.78.193.190:8080/ws/vehicles"
+BASE_URL_DEFAULT = "wss://j13a507.p.ssafy.io/ws/vehicles"
 EGO_TOPIC_DEFAULT = "/Ego_topic"
 COLLISION_TOPIC_DEFAULT = "/CollisionData"
 SEND_INTERVAL_SEC_DEFAULT = 1.0
@@ -27,7 +27,7 @@ COMPLETE_DESTROYED_THRESHOLD_DEFAULT = 2
 # =============================
 # HMAC KEY 로드
 # =============================
-ENV_PATH = "/home/ubuntu/S13P21A507/sim/simulator2/catkin_ws/.env"
+ENV_PATH = "/home/ubuntu20/S13P21A507/sim/simulator3/catkin_ws/.env"
 load_dotenv(ENV_PATH)
 SECRET_key_str = os.getenv("HMAC_SECRET_KEY")
 if not SECRET_key_str:
