@@ -8,13 +8,13 @@ import struct
 import hmac
 import hashlib
 import os
-from dotenv import load_dotenv
+from dotenv import load_dotenv, dotenv_values
 from std_msgs.msg import String
 from morai_msgs.msg import CtrlCmd, EgoVehicleStatus, CollisionData
 
 # --- 설정 ---
-BASE_URL_DEFAULT = "ws://52.78.193.190:8080/ws/vehicles"
-ENV_PATH_DEFAULT = "/home/ubuntu/S13P21A507/sim/simulator2/catkin_ws/.env"
+BASE_URL_DEFAULT = "wss://j13a507.p.ssafy.io/ws/vehicles"
+ENV_PATH_DEFAULT = "/home/ubuntu/S13P21A507/sim/simulator1/catkin_ws/.env"
 
 class ChaseManager:
     """
@@ -25,9 +25,13 @@ class ChaseManager:
 
         self.base_url = rospy.get_param("~base_url", BASE_URL_DEFAULT)
         env_path = rospy.get_param("~env_path", ENV_PATH_DEFAULT)
+
+        # 1. Launch 파일에서 받은 올바른 경로의 .env 파일을 값으로만 읽어옵니다.
+        env_values = dotenv_values(env_path)
+        secret_key_str = env_values.get("HMAC_SECRET_KEY") # 2. HMAC_SECRET_KEY 값만 가져옵니다.
         
-        load_dotenv(env_path)
-        secret_key_str = os.getenv("HMAC_SECRET_KEY")
+#        load_dotenv(env_path, override=True)
+#        secret_key_str = os.getenv("HMAC_SECRET_KEY")
         if not secret_key_str:
             rospy.logerr(f"HMAC_SECRET_KEY 환경 변수를 찾을 수 없습니다. ({env_path})")
             rospy.signal_shutdown("HMAC_SECRET_KEY not set")

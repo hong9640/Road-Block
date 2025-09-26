@@ -11,11 +11,11 @@ from morai_msgs.msg import EgoVehicleStatus
 from dotenv import load_dotenv
 
 # --- 설정 ---
-URL_DEFAULT = "ws://52.78.193.190:8080/ws/vehicles"
+URL_DEFAULT = "wss://j13a507.p.ssafy.io/ws/vehicles"
 VEHICLE_TYPE_DEFAULT = 0 # 0: 경찰, 1: 도둑
 CAR_NAME_DEFAULT = "POLICE_CAR"
 MESSAGE_TYPE = 0xA0
-ENV_PATH_DEFAULT = "/home/ubuntu/S13P21A507/sim/simulator2/catkin_ws/.env"
+ENV_PATH_DEFAULT = "/home/ubuntu/S13P21A507/sim/simulator1/catkin_ws/.env"
 
 class VehicleRegistrar:
     def __init__(self):

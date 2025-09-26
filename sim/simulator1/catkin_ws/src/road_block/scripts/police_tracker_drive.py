@@ -1,0 +1,576 @@
+#!/usr/bin/env python3
+# -*- coding: utf-8 -*-
+
+import rospy
+import json
+import math
+import os
+import numpy as np
+from scipy.spatial import KDTree
+import heapq
+import cv2
+import threading
+
+from nav_msgs.msg import Path
+from geometry_msgs.msg import PoseStamped
+from morai_msgs.msg import CtrlCmd, EgoVehicleStatus
+from scipy.interpolate import CubicSpline
+from std_msgs.msg import String # String 타입 import 추가
+
+class HDMapManager:
+    # (원본 유지) HDMapManager 클래스 로직은 변경하지 않습니다.
+    def __init__(self, map_dir_path):
+        self.links_data = {}
+        self.nodes_data = {}
+        self.waypoints_xy = None
+        self.kdtree = None
+        self.link_info_at_waypoint = []
+        self.min_x, self.min_y, self.max_x, self.max_y = float('inf'), float('inf'), float('-inf'), float('-inf')
+
+        link_file = os.path.join(map_dir_path, 'link_set.json')
+        node_file = os.path.join(map_dir_path, 'node_set.json')
+
+        rospy.loginfo(f"맵 데이터 로딩: {link_file}, {node_file}")
+        try:
+            with open(link_file, 'r') as f: link_data = json.load(f)
+            with open(node_file, 'r') as f: node_data = json.load(f)
+        except FileNotFoundError as e:
+            rospy.logerr(f"맵 파일을 찾을 수 없습니다: {e}")
+            rospy.signal_shutdown("Map file not found")
+            return
+
+        for node in node_data: self.nodes_data[node['idx']] = node
+
+        all_points_xy = []
+        for link in link_data:
+            link['points'] = np.array(link['points'])
+            self.links_data[link['idx']] = link
+            for i, p in enumerate(link['points']):
+                x, y = p[0], p[1]
+                self.min_x, self.min_y = min(self.min_x, x), min(self.min_y, y)
+                self.max_x, self.max_y = max(self.max_y, x), max(self.max_y, y)
+                all_points_xy.append([x, y])
+                self.link_info_at_waypoint.append({'link_id': link['idx'], 'point_idx': i})
+
+        if all_points_xy:
+            self.waypoints_xy = np.array(all_points_xy)
+            self.kdtree = KDTree(self.waypoints_xy)
+            rospy.loginfo("맵 데이터 로딩 및 KDTree 생성 완료!")
+
+    def find_projection_on_map(self, x, y):
+        if self.kdtree is None: return None
+        _, idx = self.kdtree.query([x, y], k=1)
+        return self.link_info_at_waypoint[idx]
+
+    def get_global_path(self, start_proj, end_proj, reverse_penalty=1.5):
+        start_link_id, end_link_id = start_proj['link_id'], end_proj['link_id']
+
+        open_set = [(0, start_link_id)]
+        came_from = {}
+        g_score = {link_id: float('inf') for link_id in self.links_data}; g_score[start_link_id] = 0
+        f_score = {link_id: float('inf') for link_id in self.links_data}; f_score[start_link_id] = self._heuristic(start_link_id, end_link_id)
+
+        while open_set:
+            _, current_link_id = heapq.heappop(open_set)
+            if current_link_id == end_link_id: return self._reconstruct_path(came_from, current_link_id)
+
+            current_link = self.links_data[current_link_id]
+            to_node_id, from_node_id = current_link['to_node_idx'], current_link['from_node_idx']
+
+            neighbors = []
+            neighbors.extend([(l_id, 'forward', current_link['link_length']) for l_id, link in self.links_data.items() if link['from_node_idx'] == to_node_id])
+            neighbors.extend([(l_id, 'reverse', current_link['link_length'] * reverse_penalty) for l_id, link in self.links_data.items() if link['to_node_idx'] == from_node_id])
+
+            for neighbor_id, direction, cost in neighbors:
+                if g_score[current_link_id] + cost < g_score[neighbor_id]:
+                    came_from[neighbor_id] = (current_link_id, direction)
+                    g_score[neighbor_id] = g_score[current_link_id] + cost
+                    f_score[neighbor_id] = g_score[neighbor_id] + self._heuristic(neighbor_id, end_link_id)
+                    heapq.heappush(open_set, (f_score[neighbor_id], neighbor_id))
+        return None
+
+    def _heuristic(self, link_id_a, link_id_b):
+        pos_a = self.links_data[link_id_a]['points'][-1]
+        pos_b = self.links_data[link_id_b]['points'][-1]
+        return np.linalg.norm(pos_a - pos_b)
+
+    def _reconstruct_path(self, came_from, current_id):
+        path_sequence = []
+        while current_id in came_from:
+            prev_id, direction = came_from[current_id]
+            path_sequence.insert(0, (current_id, direction))
+            current_id = prev_id
+
+        if path_sequence and path_sequence[0][0] == current_id:
+            return path_sequence
+
+        path_sequence.insert(0, (current_id, 'forward'))
+
+        return path_sequence
+
+class PathVisualizer:
+    # (원본 유지) PathVisualizer 로직은 변경하지 않습니다.
+    def __init__(self, map_manager):
+        self.map_manager = map_manager
+        self.SCALE = 5.0
+        self.VIEW_WIDTH, self.VIEW_HEIGHT = 800, 800
+        self.map_background = self._create_map_background()
+
+    def _create_map_background(self):
+        rospy.loginfo("배경 맵 이미지 생성 중...")
+        map_width_m = self.map_manager.max_x - self.map_manager.min_x
+        map_height_m = self.map_manager.max_y - self.map_manager.min_y
+        bg_width_px = int(map_width_m * self.SCALE) + 200
+        bg_height_px = int(map_height_m * self.SCALE) + 200
+        background = np.zeros((bg_height_px, bg_width_px, 3), dtype=np.uint8)
+
+        for link in self.map_manager.links_data.values():
+            for i in range(len(link['points']) - 1):
+                p1_x = int((link['points'][i][0] - self.map_manager.min_x) * self.SCALE) + 100
+                p1_y = int((link['points'][i][1] - self.map_manager.min_y) * self.SCALE) + 100
+                p2_x = int((link['points'][i+1][0] - self.map_manager.min_x) * self.SCALE) + 100
+                p2_y = int((link['points'][i+1][1] - self.map_manager.min_y) * self.SCALE) + 100
+
+                p1_y_f, p2_y_f = bg_height_px - p1_y, bg_height_px - p2_y
+                cv2.line(background, (p1_x, p1_y_f), (p2_x, p2_y_f), (100, 100, 100), 1)
+        rospy.loginfo("배경 맵 이미지 생성 완료!")
+        return background
+
+    def update(self, ego_status, target_status, global_path, local_path):
+        ego_cx_bg = int((ego_status.position.x - self.map_manager.min_x) * self.SCALE) + 100
+        ego_cy_bg_f = self.map_background.shape[0] - (int((ego_status.position.y - self.map_manager.min_y) * self.SCALE) + 100)
+        try:
+            view = cv2.getRectSubPix(self.map_background, (self.VIEW_WIDTH, self.VIEW_HEIGHT), (ego_cx_bg, ego_cy_bg_f))
+        except cv2.error:
+            view = np.zeros((self.VIEW_HEIGHT, self.VIEW_WIDTH, 3), dtype=np.uint8)
+
+        M = cv2.getRotationMatrix2D((self.VIEW_WIDTH/2, self.VIEW_HEIGHT/2), 90 - ego_status.heading, 1)
+        rotated_view = cv2.warpAffine(view, M, (self.VIEW_WIDTH, self.VIEW_HEIGHT))
+
+        paths_to_draw = [(global_path, (0, 255, 255), 1), (local_path, (0, 255, 0), 2)]
+        for path, color, thickness in paths_to_draw:
+            if path:
+                for i in range(len(path.poses) - 1):
+                    p1 = self._world_to_rotated_pixel(path.poses[i].pose.position, ego_status)
+                    p2 = self._world_to_rotated_pixel(path.poses[i+1].pose.position, ego_status)
+                    cv2.line(rotated_view, p1, p2, color, thickness)
+
+        if target_status:
+            tx, ty = self._world_to_rotated_pixel(target_status.position, ego_status)
+            cv2.circle(rotated_view, (tx, ty), 10, (0, 0, 255), -1)
+
+        cv2.circle(rotated_view, (self.VIEW_WIDTH//2, self.VIEW_HEIGHT//2), 10, (255, 0, 0), -1)
+        cv2.line(rotated_view, (self.VIEW_WIDTH//2, self.VIEW_HEIGHT//2), (self.VIEW_WIDTH//2, self.VIEW_HEIGHT//2 - 20), (255, 255, 0), 2)
+
+        cv2.imshow("Hierarchical Path Planning", rotated_view)
+        cv2.waitKey(1)
+
+    def _world_to_rotated_pixel(self, pos, ego):
+        dx = pos.x - ego.position.x
+        dy = pos.y - ego.position.y
+        yaw = math.radians(ego.heading)
+
+        lx = dx * math.cos(-yaw) - dy * math.sin(-yaw)
+        ly = dx * math.sin(-yaw) + dy * math.cos(-yaw)
+
+        pixel_x = int(self.VIEW_WIDTH/2 - ly * self.SCALE)
+        pixel_y = int(self.VIEW_HEIGHT/2 - lx * self.SCALE)
+        return pixel_x, pixel_y
+
+class AggressivePursuitNode:
+    """
+    (수정됨) 1) ego-4이 추격자, ego-2가 표적  2) velocity는 발행 시 km/h로 변환
+    """
+    def __init__(self):
+        rospy.init_node("aggressive_pursuit_node", anonymous=True)
+        map_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), "map_data")
+        self.map_manager = HDMapManager(map_dir)
+
+        self.pursuer_status, self.target_status = None, None
+        self.data_lock = threading.Lock()
+        
+        # ⭐ [추가] 추격 활성화 상태 변수
+        self.chase_active = False 
+
+        # Ego-4 (추격자)의 상태를 구독하고, Ego-4에게 명령을 발행합니다.
+        rospy.Subscriber("/Ego_4/Ego_topic",       EgoVehicleStatus, self.pursuer_status_callback)
+        # Ego-2 (표적)의 상태를 구독합니다.
+        rospy.Subscriber("/Ego_2/Ego_topic", EgoVehicleStatus, self.target_status_callback)
+        # ⭐ [추가] 추격 상태 메시지 구독
+        rospy.Subscriber("/chase_status", String, self.chase_status_callback, queue_size=1) 
+
+        self.g_path_pub = rospy.Publisher('/global_path', Path, queue_size=1)
+        self.l_path_pub = rospy.Publisher('/local_path', Path, queue_size=1)
+        self.ctrl_pub   = rospy.Publisher('/Ego_4/ctrl_cmd', CtrlCmd, queue_size=1)
+
+        self.global_path, self.local_path = None, None
+        self.last_steering = 0.0
+        self.last_goal_proj = None
+        self.local_path_start_index = 0
+        self.last_global_path_update_time = rospy.Time.now() # 새로운 변수 추가
+
+        self.REVERSE_DRIVING_PENALTY = 1.5
+        self.INTERCEPT_TIME_GAIN = 1.2
+        self.LOOKAHEAD_DISTANCE = 50.0
+        self.GLOBAL_PATH_UPDATE_THRESHOLD_DIST = 15.0 # (미사용)
+        self.GLOBAL_PATH_UPDATE_THRESHOLD_PROGRESS = 0.5
+        self.GLOBAL_PATH_UPDATE_TIME_THRESHOLD = 5.0 # 5초마다 강제 갱신
+        self.vehicle_length = 2.6
+        self.max_steering_rad = 0.85
+        self.steer_smoothing_alpha = 0.3
+        self.lfd_gain = 0.8
+        self.min_lfd, self.max_lfd = 4.0, 30.0
+        self.VELOCITY_KP = 1.5
+        self.MAX_VELOCITY_KPH = 90.0
+
+        self.GRAVITY = 9.81
+        self.SAFE_FRICTION_COEFF = 0.8
+        self.MAX_CURVATURE_VELOCITY_MPS = 40.0
+        self.LOCAL_PATH_SMOOTH_INTERVAL = 1.0
+        self.AGGRESSIVE_TURN_DISTANCE = 10.0
+        self.AGGRESSIVE_ANGLE_THRESHOLD = math.radians(30) # (미사용)
+        self.MIN_AGGRESSIVE_VELOCITY_KPH = 15.0
+
+        self.visualizer = PathVisualizer(self.map_manager)
+
+        rospy.Timer(rospy.Duration(1.0/20.0), self.control_loop)
+        rospy.on_shutdown(self.shutdown_callback)
+        rospy.loginfo("Ego-4이 Ego-2를 추격하는 공격적 최단경로 추격 노드 시작. (km/h 발행)")
+
+    def chase_status_callback(self, msg: String):
+        """⭐ [추가] 추격 시작/정지 명령을 처리하는 콜백 함수"""
+        rospy.loginfo(f"추격 상태 명령 수신: '{msg.data}'")
+        if msg.data == "START" and not self.chase_active:
+            self.chase_active = True
+            rospy.loginfo("추격 명령 확인! 주행을 시작합니다.")
+        elif msg.data == "STOP" and self.chase_active:
+            self.chase_active = False
+            rospy.loginfo("정지 명령 확인! 주행을 중지합니다.")
+            
+            # 정지 명령 시 즉시 차량을 멈추는 명령 발행
+            stop_cmd = CtrlCmd(longlCmdType=1, accel=0.0, brake=1.0, steering=0.0)
+            self.ctrl_pub.publish(stop_cmd)
+
+
+    def shutdown_callback(self):
+        rospy.loginfo("노드 종료. OpenCV 창 닫기.")
+        cv2.destroyAllWindows()
+
+    def pursuer_status_callback(self, msg):
+        with self.data_lock: self.pursuer_status = msg
+    def target_status_callback(self, msg):
+        with self.data_lock: self.target_status = msg
+
+    def control_loop(self, event):
+        with self.data_lock:
+            pursuer_status_local = self.pursuer_status
+            target_status_local = self.target_status
+            
+        # ⭐ [수정] 추격 활성화 상태 확인
+        if not self.chase_active:
+            if pursuer_status_local and pursuer_status_local.velocity.x > 0.5:
+                stop_cmd = CtrlCmd(longlCmdType=1, accel=0.0, brake=1.0, steering=0.0)
+                self.ctrl_pub.publish(stop_cmd)
+            return
+
+        if not pursuer_status_local or not target_status_local: return
+
+        ego_proj = self.map_manager.find_projection_on_map(pursuer_status_local.position.x, pursuer_status_local.position.y)
+        target_proj = self.map_manager.find_projection_on_map(target_status_local.position.x, target_status_local.position.y)
+        if not ego_proj or not target_proj: return
+
+        goal_proj = self._get_intercept_goal_projection(target_proj, target_status_local)
+
+        if self.global_path is None or self._should_update_global_path(goal_proj):
+            path_seq = self.map_manager.get_global_path(ego_proj, goal_proj, self.REVERSE_DRIVING_PENALTY)
+            if path_seq:
+                self.global_path = self._stitch_links_to_path(path_seq, ego_proj)
+                self.g_path_pub.publish(self.global_path)
+                self.last_goal_proj = goal_proj
+                self.local_path_start_index = 0
+                self.last_global_path_update_time = rospy.Time.now() # 갱신 시간 저장
+            else:
+                self.global_path = None
+
+        if not self.global_path: return
+
+        self.local_path = self._extract_local_path(pursuer_status_local)
+        if not self.local_path: return
+        self.l_path_pub.publish(self.local_path)
+
+        steering_cmd = self.calculate_steering(pursuer_status_local)
+        velocity_cmd_mps = self.calculate_velocity(pursuer_status_local, goal_proj)
+
+        velocity_cmd_kph = float(velocity_cmd_mps * 3.6)
+
+        cmd = CtrlCmd(longlCmdType=2, steering=float(steering_cmd), velocity=velocity_cmd_kph)
+        self.ctrl_pub.publish(cmd)
+
+        self.visualizer.update(pursuer_status_local, target_status_local, self.global_path, self.local_path)
+
+    def _get_intercept_goal_projection(self, target_proj, target_status):
+        target_speed = target_status.velocity.x
+        time_to_intercept = (self.LOOKAHEAD_DISTANCE / (target_speed + 1e-6)) * self.INTERCEPT_TIME_GAIN
+        intercept_distance_ahead = target_speed * time_to_intercept
+
+        link_id = target_proj['link_id']
+        start_idx = target_proj['point_idx']
+        link_points = self.map_manager.links_data[link_id]['points']
+
+        target_heading_rad = math.radians(target_status.heading)
+        target_heading_vec = np.array([math.cos(target_heading_rad), math.sin(target_heading_rad)])
+
+        link_vec_forward = link_points[-1][:2] - link_points[0][:2]
+        link_vec_reverse = link_points[0][:2] - link_points[-1][:2]
+
+        dot_forward = np.dot(target_heading_vec, link_vec_forward)
+        dot_reverse = np.dot(target_heading_vec, link_vec_reverse)
+
+        if dot_forward >= dot_reverse:
+            total_dist = 0
+            for i in range(start_idx, len(link_points) - 1):
+                total_dist += np.linalg.norm(link_points[i+1][:2] - link_points[i][:2])
+                if total_dist >= intercept_distance_ahead:
+                    return {'link_id': link_id, 'point_idx': i + 1}
+            return {'link_id': link_id, 'point_idx': len(link_points) - 1}
+        else:
+            total_dist = 0
+            if start_idx == 0: return {'link_id': link_id, 'point_idx': 0}
+            for i in range(start_idx, 0, -1):
+                total_dist += np.linalg.norm(link_points[i-1][:2] - link_points[i][:2])
+                if total_dist >= intercept_distance_ahead:
+                    return {'link_id': link_id, 'point_idx': i - 1}
+            return {'link_id': link_id, 'point_idx': 0}
+
+    def _should_update_global_path(self, goal_proj):
+        # 수정: 시간 기반 갱신 조건 추가
+        time_since_last_update = (rospy.Time.now() - self.last_global_path_update_time).to_sec()
+        is_timeout = time_since_last_update > self.GLOBAL_PATH_UPDATE_TIME_THRESHOLD
+
+        if not self.global_path or not self.global_path.poses or not self.last_goal_proj: return True
+
+        is_goal_changed = goal_proj['link_id'] != self.last_goal_proj['link_id'] or goal_proj['point_idx'] != self.last_goal_proj['point_idx']
+
+        if self.global_path.poses:
+            path_len = len(self.global_path.poses)
+            is_path_progressed = self.local_path_start_index >= path_len * self.GLOBAL_PATH_UPDATE_THRESHOLD_PROGRESS
+
+        return is_goal_changed or is_path_progressed or is_timeout
+
+    def _stitch_links_to_path(self, path_sequence, ego_proj):
+        points = []
+        path_length = 0
+
+        if not path_sequence:
+            return self.convert_points_to_ros_path(points)
+
+        first_link_id, first_link_direction = path_sequence[0]
+        first_link_points = self.map_manager.links_data[first_link_id]['points']
+        if first_link_direction == 'reverse':
+            first_link_points = np.flip(first_link_points, axis=0)
+
+        start_idx_in_first_link = ego_proj['point_idx']
+
+        points.extend(first_link_points[start_idx_in_first_link:])
+
+        for i in range(1, len(path_sequence)):
+            link_id, direction = path_sequence[i]
+            link_points = self.map_manager.links_data[link_id]['points']
+            if direction == 'reverse':
+                link_points = np.flip(link_points, axis=0)
+            points.extend(link_points)
+
+        return self.convert_points_to_ros_path(points)
+
+    def _extract_local_path(self, pursuer_status):
+        if not self.global_path or not self.global_path.poses: return None
+
+        path_points = np.array([[p.pose.position.x, p.pose.position.y] for p in self.global_path.poses])
+        ego_pos = np.array([pursuer_status.position.x, pursuer_status.position.y])
+        ego_heading_vec = np.array([math.cos(math.radians(pursuer_status.heading)), math.sin(math.radians(pursuer_status.heading))])
+
+        min_dist_sq = float('inf')
+        start_idx = self.local_path_start_index
+
+        for i in range(self.local_path_start_index, len(self.global_path.poses)):
+            path_point_vec = path_points[i] - ego_pos
+            if np.dot(path_point_vec, ego_heading_vec) > 0:
+                dist_sq = np.sum(path_point_vec**2)
+                if dist_sq < min_dist_sq:
+                    min_dist_sq = dist_sq
+                    start_idx = i
+
+        self.local_path_start_index = start_idx
+
+        path_length, end_idx = 0, len(self.global_path.poses)
+        for i in range(start_idx, len(self.global_path.poses) - 1):
+            p1 = self.global_path.poses[i].pose.position
+            p2 = self.global_path.poses[i+1].pose.position
+            path_length += math.sqrt((p2.x - p1.x)**2 + (p2.y - p1.y)**2)
+            if path_length > self.LOOKAHEAD_DISTANCE:
+                end_idx = i + 1
+                break
+
+        local_path_poses = self.global_path.poses[start_idx:end_idx]
+        if not local_path_poses or len(local_path_poses) < 2:
+            return None
+
+        x = np.array([p.pose.position.x for p in local_path_poses])
+        y = np.array([p.pose.position.y for p in local_path_poses])
+
+        s = np.zeros(len(x))
+        for i in range(1, len(x)):
+            s[i] = s[i-1] + np.linalg.norm([x[i] - x[i-1], y[i] - y[i-1]])
+
+        if len(s) < 4:
+            return self.convert_points_to_ros_path([[x[i], y[i], 0] for i in range(len(x))])
+
+        try:
+            cs_x = CubicSpline(s, x)
+            cs_y = CubicSpline(s, y)
+            s_new = np.arange(s[0], s[-1], self.LOCAL_PATH_SMOOTH_INTERVAL)
+            x_new = cs_x(s_new)
+            y_new = cs_y(s_new)
+
+            smoothed_path = Path(header=rospy.Header(frame_id='map', stamp=rospy.Time.now()))
+            for i in range(len(s_new)):
+                pose = PoseStamped()
+                pose.pose.position.x = x_new[i]
+                pose.pose.position.y = y_new[i]
+                pose.pose.position.z = 0.0
+                smoothed_path.poses.append(pose)
+            return smoothed_path
+        except Exception as e:
+            rospy.logwarn(f"로컬 경로 스무딩 오류: {e}")
+            return self.convert_points_to_ros_path([[x[i], y[i], 0] for i in range(len(x))])
+
+
+    def calculate_steering(self, pursuer_status):
+        if not self.global_path or not self.global_path.poses or not self.local_path or not self.local_path.poses:
+            return self.last_steering * 0.9
+
+        current_v = pursuer_status.velocity.x
+
+        if current_v < 10.0:
+            lfd = self.min_lfd
+        else:
+            lfd = self.lfd_gain * current_v + 5 * (1 - math.exp(-0.1 * current_v))
+            lfd = min(self.max_lfd, lfd)
+            lfd = max(self.min_lfd, lfd)
+
+
+        for pose in self.local_path.poses:
+            dx = pose.pose.position.x - pursuer_status.position.x
+            dy = pose.pose.position.y - pursuer_status.position.y
+            yaw = math.radians(pursuer_status.heading)
+
+            lx = dx * math.cos(-yaw) - dy * math.sin(-yaw)
+            ly = dx * math.sin(-yaw) + dy * math.cos(-yaw)
+
+            if lx > 0.1:
+                dist = math.sqrt(lx**2 + ly**2)
+                if dist >= lfd:
+                    theta = math.atan2(ly, lx)
+
+                    final_goal_pose = self.global_path.poses[-1].pose.position
+                    dist_to_final_goal = math.sqrt((final_goal_pose.x - pursuer_status.position.x)**2 +
+                                                   (final_goal_pose.y - pursuer_status.position.y)**2)
+
+                    if dist_to_final_goal < self.AGGRESSIVE_TURN_DISTANCE:
+                        max_steer_for_speed = self.max_steering_rad * (1.0 - (current_v / (self.MAX_VELOCITY_KPH / 3.6)))
+                        clipped = math.copysign(max(0.1, max_steer_for_speed), theta)
+                    else:
+                        raw_steer = math.atan2(2 * self.vehicle_length * math.sin(theta), lfd)
+                        clipped = max(-self.max_steering_rad, min(self.max_steering_rad, raw_steer))
+
+                    smoothed = self.last_steering * self.steer_smoothing_alpha + clipped * (1 - self.steer_smoothing_alpha)
+                    self.last_steering = smoothed
+                    return smoothed
+
+        return self.last_steering * 0.9
+
+    def calculate_velocity(self, pursuer_status, goal_proj):
+        current_v_mps = pursuer_status.velocity.x
+        
+        # 기본 속도 제한 설정 (로컬 경로가 없거나 짧을 때 사용)
+        velocity_limit_mps = self.MAX_VELOCITY_KPH / 3.6
+
+        # local_path가 존재하고 최소 3개의 포즈가 있어야 곡률 계산 가능
+        if self.local_path and len(self.local_path.poses) >= 3:
+            try:
+                # local_path.poses는 CubicSpline으로 스무딩된 경로이므로
+                # 인덱스는 0부터 시작하는 local path 인덱스를 사용해야 합니다.
+                p1_idx_local = 0
+                p2_idx_local = 1
+                
+                # p3_idx: LOOKAHEAD_DISTANCE의 0.5 지점에 가까운 인덱스를 계산
+                ideal_p3_idx = int(self.LOOKAHEAD_DISTANCE * 0.5 / self.LOCAL_PATH_SMOOTH_INTERVAL)
+                
+                # local_path.poses의 최대 인덱스를 초과하지 않도록 제한
+                # 최소 2가 되도록 보장 (0, 1, 2)
+                max_local_idx = len(self.local_path.poses) - 1
+                p3_idx_local = min(ideal_p3_idx, max_local_idx)
+                p3_idx_local = max(2, p3_idx_local) 
+                
+                # 세 점의 위치
+                p1_pos = np.array([self.local_path.poses[p1_idx_local].pose.position.x, self.local_path.poses[p1_idx_local].pose.position.y])
+                p2_pos = np.array([self.local_path.poses[p2_idx_local].pose.position.x, self.local_path.poses[p2_idx_local].pose.position.y])
+                p3_pos = np.array([self.local_path.poses[p3_idx_local].pose.position.x, self.local_path.poses[p3_idx_local].pose.position.y])
+                
+                # 세 점을 이용한 원의 반지름(곡률의 역수) 계산
+                a = np.linalg.norm(p1_pos - p2_pos)
+                b = np.linalg.norm(p2_pos - p3_pos)
+                c = np.linalg.norm(p3_pos - p1_pos)
+                s = (a + b + c) / 2.0
+                area = math.sqrt(max(0, s * (s-a) * (s-b) * (s-c))) # 헤론의 공식
+
+                if area > 1e-6:
+                    radius = (a * b * c) / (4 * area)
+                    curvature = 1.0 / radius
+                else:
+                    curvature = 0
+
+                # 곡률 기반 속도 제한 (원심력 고려)
+                max_curve_v_mps = math.sqrt(self.SAFE_FRICTION_COEFF * self.GRAVITY / (abs(curvature) + 1e-6))
+
+                velocity_limit_mps = min(max_curve_v_mps, self.MAX_CURVATURE_VELOCITY_MPS)
+            except Exception as e:
+                # 곡률 계산 중 다른 예외가 발생하면 로깅하고 기본값 유지
+                rospy.logwarn(f"곡률 계산 오류 (안전 로직): {e}")
+                velocity_limit_mps = self.MAX_VELOCITY_KPH / 3.6
+        
+        # --- 목표 지점까지의 PID 기반 속도 계산 ---
+        goal_point = self.map_manager.links_data[goal_proj['link_id']]['points'][goal_proj['point_idx']]
+        dx = goal_point[0] - pursuer_status.position.x
+        dy = goal_point[1] - pursuer_status.position.y
+        dist_to_goal = math.sqrt(dx**2 + dy**2)
+        target_v_pid = self.VELOCITY_KP * dist_to_goal
+
+        # 최종 속도 결정
+        final_target_v_mps = min(target_v_pid, velocity_limit_mps)
+        max_v = self.MAX_VELOCITY_KPH / 3.6
+
+        # 목표 지점 근처에서 공격적인 최소 속도 유지
+        if dist_to_goal < self.AGGRESSIVE_TURN_DISTANCE:
+            min_aggressive_v = self.MIN_AGGRESSIVE_VELOCITY_KPH / 3.6
+            return max(min_aggressive_v, min(final_target_v_mps, max_v))
+
+        return max(0.0, min(final_target_v_mps, max_v))
+
+
+    def convert_points_to_ros_path(self, points):
+        ros_path = Path(header=rospy.Header(frame_id='map', stamp=rospy.Time.now()))
+        for p in points:
+            pose = PoseStamped()
+            pose.pose.position.x = p[0]
+            pose.pose.position.y = p[1]
+            pose.pose.position.z = 0.0 if len(p) < 3 else p[2] # z 좌표가 없는 경우 0.0 처리
+            ros_path.poses.append(pose)
+        return ros_path
+
+if __name__ == '__main__':
+    try:
+        node = AggressivePursuitNode()
+        rospy.spin()
+    except rospy.ROSInterruptException:
+        rospy.loginfo("프로그램 종료")
