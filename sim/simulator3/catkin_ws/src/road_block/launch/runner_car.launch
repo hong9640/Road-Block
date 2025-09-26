@@ -1,0 +1,25 @@
+<launch>
+    <arg name="env_path" default="/home/ubuntu/S13P21A507/sim/simulator2/catkin_ws/.env" />
+
+    <node pkg="road_block" type="vehicle_registration.py" name="registration_runner" output="screen">
+        <param name="car_name" value="runner" />
+        <param name="vehicle_type" value="1" />
+        <param name="env_path" value="$(arg env_path)" />
+        <param name="vehicle_id_override" value="2" />
+        <remap from="/Ego_topic" to="/Ego_2/Ego_topic" />
+    </node>
+
+    <node pkg="road_block" type="vehicle_locate_info.py" name="location_updater_runner" output="screen" respawn="true">
+        <param name="env_path" value="$(arg env_path)" />
+        <param name="vehicle_id_override" value="2" />
+        <remap from="/Ego_topic" to="/Ego_2/Ego_topic" />
+    </node>
+
+    <node pkg="road_block" type="vehicle_stat_info.py" name="status_sender_runner" output="screen" respawn="true">
+        <param name="env_path" value="$(arg env_path)" />
+        <param name="vehicle_id_override" value="2" />
+        <param name="vehicle_type" value="1" /> 
+        <remap from="/Ego_topic" to="/Ego_2/Ego_topic" />
+        <remap from="/CollisionData" to="/Ego_2/CollisionData" />
+    </node>
+</launch>
