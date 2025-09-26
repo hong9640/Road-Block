@@ -97,20 +97,19 @@ frontend/
 │   │   ├── main/        # 메인 페이지 관련 컴포넌트
 │   │   │   ├── MainLanding.tsx          # 메인 랜딩 페이지 컴포넌트
 │   │   │   ├── MapCard.tsx              # 지도 선택 카드 컴포넌트
-│   │   │   └── MapCard.css              # 지도 카드 스타일링
 │   │   │
 │   │   └── map/         # 지도 관련 컴포넌트
 │   │       └── Components/
 │   │           ├── MapView.tsx           # OpenLayers 기반 지도 뷰 컴포넌트
 │   │           └── VehicleMarker.tsx     # 차량 위치 마커 컴포넌트
 │   │
-│   ├── lib/             # 유틸리티 함수 (시간 관련 UI 표시 정의)
+│   ├── utils/           # 유틸리티 함수 (시간 관련 UI 표시 정의)
 │   ├── stores/          # Zustand 상태관리
 │   ├── pages/           # 라우팅 페이지 컴포넌트
 │   ├── styles/          # 공통 컴포넌트 CSS 스타일
 │   ├── types.ts         # TypeScript 타입 정의
 │   ├── websockets/      # WebSocket 통신 관련
-│   └── Apis.ts          # REST API 통신
+│   └── Apis.ts          # axios 활용 HTTP API 통신
 │
 ├── vite.config.ts       # Vite 설정
 └── tsconfig.json        # TypeScript 설정
