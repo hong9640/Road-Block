@@ -10,6 +10,7 @@ import { useEventStore } from "@/stores/useEventStore";
 import { getEventListAPI, getVehicleListAPI } from "@/Apis";
 import { mapsData } from "@/lib/datas";
 
+import { House } from "lucide-react";
 import "./ControlSidebar.css";
 
 export default function ControlSideBar({ isOpen }: DashboardContext) {
@@ -51,7 +52,10 @@ export default function ControlSideBar({ isOpen }: DashboardContext) {
       >
         <nav className="sidebar">
           {/* 헤더 */}
-          <div className="sidebar-header">로드블락 시스템</div>
+          <div className="sidebar-header">
+            <span>로드블락 시스템</span>
+            <House className="cursor-pointer" onClick={() => nav('')}/>
+          </div>
 
           <div className="flex-1 flex flex-col min-h-0">
             {/* 지도 선택 */}

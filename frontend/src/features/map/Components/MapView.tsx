@@ -213,7 +213,7 @@ export default function Mapview({ mapId }: MapviewProps) {
   return (
     <div ref={mapEl} className="w-full h-full relative bg-gray-300">
       {mapError && (
-        <div className="absolute inset-0 flex items-center justify-center bg-gray-200 text-red-600 font-semibold">
+        <div className="absolute inset-0 flex items-center justify-center bg-gray-200 font-semibold">
           {mapError}
         </div>
       )}

@@ -19,7 +19,7 @@
     @apply h-full flex flex-col bg-gray-800 text-white;
   }
   .sidebar-header {
-    @apply p-4 font-bold border-b border-gray-700;
+    @apply p-4 font-bold border-b border-gray-700 flex justify-between pr-5;
   }
   .sidebar-section {
     @apply p-2 space-y-2 border-b border-gray-700;
