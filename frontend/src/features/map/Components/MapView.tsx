@@ -20,7 +20,6 @@ import Style from "ol/style/Style";
 import Fill from "ol/style/Fill";
 import Stroke from "ol/style/Stroke";
 import {
-  buffer as extentBuffer,
   createEmpty,
   extend as extentExtend,
   isEmpty as extentIsEmpty,
@@ -43,11 +42,9 @@ export default function Mapview({ mapId }: MapviewProps) {
   const activeCars = useVehicleStore((s) => s.activeCars);
   const focusedCarId = useVehicleStore((s) => s.focusedCarId);
 
-  // 🚩 상태 관리
   const [mapReady, setMapReady] = useState(false);
   const [mapError, setMapError] = useState<string | null>(null);
 
-  // id → 위치 매핑
   const posById = useMemo<Record<number, CarPosition>>(() => {
     const acc: Record<number, CarPosition> = {};
     for (const p of carsPosition) acc[p.id] = p;
@@ -67,14 +64,11 @@ export default function Mapview({ mapId }: MapviewProps) {
       localProj = new Projection({ code, units: "m" });
     }
 
-    // 2) 임시 View
+    // 2) 초기 View
     const tempView = new View({
       projection: localProj,
       center: [0, 0],
       zoom: 2,
-      smoothExtentConstraint: false,
-      constrainOnlyCenter: false,
-      constrainResolution: true,
     });
 
     // 3) 맵 생성
@@ -89,9 +83,7 @@ export default function Mapview({ mapId }: MapviewProps) {
         }),
       ]),
       interactions: defaultInteractions().extend([
-        new MouseWheelZoom({
-          duration: 400,
-        }),
+        new MouseWheelZoom({ duration: 400 }),
       ]),
     });
     mapRef.current = map;
@@ -139,7 +131,7 @@ export default function Mapview({ mapId }: MapviewProps) {
         const layer = new VectorLayer({ source, style: styleFn });
         map.addLayer(layer);
 
-        // extent 계산
+        // 6) 데이터 extent 계산
         const dataExtent = createEmpty();
         features.forEach((f) => {
           const geom = f.getGeometry();
@@ -151,25 +143,72 @@ export default function Mapview({ mapId }: MapviewProps) {
           return;
         }
 
-        const PAD = 50;
-        const limitedExtent = extentBuffer(dataExtent, PAD);
-        localProj!.setExtent(limitedExtent);
+        // 7) 16:10을 상한으로 하되, 뷰포트 비율보다 넓히지 않음 → 과도한 여백 방지
+        const dx = dataExtent[2] - dataExtent[0];
+        const dy = dataExtent[3] - dataExtent[1];
+        const dataRatio = dx / dy;
 
-        // View 설정
-        tempView.fit(dataExtent, { padding: [24, 24, 24, 24], duration: 0 });
-        const resNow = tempView.getResolution()!;
-        const centerNow = tempView.getCenter()!;
+        const size = map.getSize();
+        const viewRatio = size && size[1] > 0 ? size[0] / size[1] : 16 / 10;
+        const targetRatio = Math.min(16 / 10, viewRatio);
 
-        const finalView = new View({
+        const finalExtent = [...dataExtent] as [number, number, number, number];
+
+        if (dataRatio > targetRatio) {
+          // 데이터가 더 넓음 → 세로 확장
+          const newHeight = dx / targetRatio;
+          const extra = (newHeight - dy) / 2;
+          finalExtent[1] -= extra;
+          finalExtent[3] += extra;
+        } else {
+          // 데이터가 더 높음 → 가로 확장
+          const newWidth = dy * targetRatio;
+          const extra = (newWidth - dx) / 2;
+          finalExtent[0] -= extra;
+          finalExtent[2] += extra;
+        }
+
+        // 8) 1차 fit
+        const preView = new View({
           projection: localProj!,
-          extent: limitedExtent,
-          center: centerNow,
-          resolution: resNow,
           minZoom: 2,
-          maxZoom: 20,
+          maxZoom: 22,
+        });
+        map.setView(preView);
+
+        const PAD = 12; // ✅ 여백 축소
+        preView.fit(finalExtent, {
+          size,
+          padding: [PAD, PAD, PAD, PAD],
+          duration: 0,
+          maxZoom: 22,
         });
 
-        map.setView(finalView);
+        // 9) fit 해상도를 zoom-out 한계로 잠금 (OL 10.x → 새 View 교체)
+        const fittedRes = preView.getResolution();
+        const fittedCenter = preView.getCenter();
+
+        // 🚩 extent를 여유 있게 확장
+        const EXT_PAD = 50; // 지도 이동 가능 여백(px 단위가 아니라 좌표 단위)
+        const paddedExtent: [number, number, number, number] = [
+          finalExtent[0] - EXT_PAD,
+          finalExtent[1] - EXT_PAD,
+          finalExtent[2] + EXT_PAD,
+          finalExtent[3] + EXT_PAD,
+        ];
+
+        if (fittedRes && fittedCenter) {
+          const lockedView = new View({
+            projection: localProj!,
+            center: fittedCenter,
+            resolution: fittedRes,
+            maxResolution: fittedRes, // 축소 한계
+            minZoom: 2,
+            maxZoom: 22,
+            extent: paddedExtent, // 🚩 살짝 여유 있는 extent로 제한
+          });
+          map.setView(lockedView);
+        }
 
         setMapReady(true);
       })
@@ -230,7 +269,7 @@ export default function Mapview({ mapId }: MapviewProps) {
               posX={pos!.posX}
               posY={pos!.posY}
               type={v.vehicle_type}
-              map={mapRef.current ?? undefined} // undefined 허용
+              map={mapRef.current ?? undefined}
             />
           ))}
     </div>
