@@ -13,8 +13,5 @@ export const PosData: CarPosition[] = [
   {id: 6, map_id: 3, posX: 630, posY: -810},
   {id: 53, map_id: 3, posX: 620, posY: -800},
   {id: 59, map_id: 2, posX: 0, posY: 45},
-  {id: 95, map_id: 2, posX: 125, posY: 1300},
-  {id: 96, map_id: 3, posX: 100, posY: -110},
-  {id: 97, map_id: 2, posX: -445, posY: 1000},
   {id: 107, map_id: 6, posX: -235, posY: 0},
 ]
