@@ -1,0 +1,29 @@
+import { mapsData } from "@/lib/datas";
+import MapCard from "./MapCard";
+import { useNavigate } from "react-router-dom";
+
+const MainLanding = () => {
+  const nav = useNavigate();
+
+  return (
+    <>
+      <h1 className="text-center text-3xl mb-16">
+        경찰차 자율주행 로드블락 시스템
+      </h1>
+      <div className="grid grid-cols-3 gap-12">
+        {mapsData.map((data) => (
+          <MapCard
+            key={data.id}
+            imgUrl={data.imgUrl}
+            label={data.label}
+            onClick={() => {
+              nav(`maps/${data.id}`);
+            }}
+          />
+        ))}
+      </div>
+    </>
+  );
+};
+
+export default MainLanding;

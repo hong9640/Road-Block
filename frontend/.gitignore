@@ -1,0 +1,51 @@
+# Logs
+logs
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+lerna-debug.log*
+
+node_modules
+dist
+dist-ssr
+*.local
+
+# Editor directories and files
+.vscode/*
+!.vscode/extensions.json
+.idea
+.DS_Store
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
+*.sw?
+
+# Docker build cache / logs
+*.pid
+*.log
+*.sock
+
+# Docker Compose overrides
+docker-compose.override.yml
+docker-compose.override.*.yml
+
+# Environment files
+.env
+.env.*
+
+# Local data / volumes
+data/
+volumes/
+tmp/
+
+# IDE / OS files
+.DS_Store
+.vscode/
+.idea/
+
+# Vite cache
+.vite/
+__mocks__.ts

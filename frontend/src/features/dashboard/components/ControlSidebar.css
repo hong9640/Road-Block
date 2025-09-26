@@ -1,0 +1,63 @@
+@reference "tailwindcss";
+
+/* 사이드바 */
+@layer components {
+  /* 전체 컨테이너 */
+  .sidebar-container {
+    @apply fixed top-0 left-0 h-full w-100
+           transition-transform duration-400 ease-in-out;
+  }
+  .sidebar-open {
+    @apply translate-x-0;
+  }
+  .sidebar-closed {
+    @apply -translate-x-full;
+  }
+
+  /* 사이드바 본체 */
+  .sidebar {
+    @apply h-full flex flex-col bg-gray-800 text-white;
+  }
+  .sidebar-header {
+    @apply p-4 font-bold border-b border-gray-700;
+  }
+  .sidebar-section {
+    @apply p-2 space-y-2 border-b border-gray-700;
+  }
+  .sidebar-section-title {
+    @apply block p-2 mb-2 rounded;
+  }
+
+  /* 지도 선택 */
+  .map-grid {
+    @apply grid grid-cols-3 p-2 pr-3 gap-4;
+  }
+  .map-button {
+    @apply border p-2 rounded-sm cursor-pointer hover:bg-gray-700;
+  }
+
+  /* 차량 관리 */
+  .vehicle-section {
+    @apply flex-1 min-h-0 flex flex-col px-2 pt-2;
+  }
+  .vehicle-header {
+    @apply flex items-center justify-between px-3 py-2 mb-2 font-semibold;
+  }
+  .vehicle-list {
+    @apply flex-1 min-h-0 overflow-y-auto pr-1 space-y-2;
+  }
+  .vehicle-select {
+    @apply bg-gray-700 text-white text-sm rounded px-2 py-1 border border-gray-600;
+  }
+
+  /* 사건 기록 */
+  .logs-section {
+    @apply py-2 pl-3 pr-4 min-h-[120px] border-t border-gray-700;
+  }
+  .logs-link {
+    @apply flex p-2 mb-2 hover:bg-gray-700 cursor-pointer justify-between;
+  }
+  .logs-list {
+    @apply space-y-2 mx-1;
+  }
+}
