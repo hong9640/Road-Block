@@ -232,7 +232,7 @@ class AggressivePursuitNode:
         rospy.init_node("aggressive_pursuit_node", anonymous=True)
         map_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), "map_data")
         self.map_manager = HDMapManager(map_dir)
-        self.visualizer = PathVisualizer(self.map_manager)
+        #self.visualizer = PathVisualizer(self.map_manager)
         
         self.chase_active = False # 추격 활성화 상태 플래그
         
@@ -285,7 +285,7 @@ class AggressivePursuitNode:
 
     def shutdown_callback(self):
         rospy.loginfo("노드 종료. OpenCV 창 닫기.")
-        cv2.destroyAllWindows()
+        #cv2.destroyAllWindows()
 
     def ego_status_callback(self, msg): self.ego_status = msg
     def target_status_callback(self, msg): self.target_status = msg
@@ -335,7 +335,7 @@ class AggressivePursuitNode:
         self.ctrl_pub.publish(cmd)
 
         # 7. 시각화 업데이트
-        self.visualizer.update(self.ego_status, self.target_status, self.global_path, self.local_path)
+        #self.visualizer.update(self.ego_status, self.target_status, self.global_path, self.local_path)
 
     def _get_intercept_goal_projection(self, target_proj):
         """
