@@ -24,9 +24,9 @@ from app.db import create_db_and_tables
 from app.routers import map_router, vehicle_router, websocket_router
 
 # Lifespan 컨텍스트 매니저 정의
+# 애플리케이션 시작과 종료 시 처리할 로직
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    """애플리케이션 시작과 종료 시 처리할 로직"""
     print("--- FastAPI app startup: creating DB tables... ---")
     await create_db_and_tables()
     yield
@@ -38,15 +38,13 @@ app = FastAPI(lifespan=lifespan, root_path="/api")
 # --- 전역 예외 핸들러 --- 
 @app.exception_handler(APIException)
 async def api_exception_handler(request: Request, exc: APIException):
-    """커스텀 APIException을 처리하여 JSON 응답을 반환합니다."""
     return JSONResponse(
         status_code=exc.status_code,
         content=ErrorMessage(message=exc.message).model_dump(),
     )
-
+# 예상치 못한 모든 예외를 처리하여 500 응답을 반환
 @app.exception_handler(Exception)
 async def generic_exception_handler(request: Request, exc: Exception):
-    """예상치 못한 모든 예외를 처리하여 500 응답을 반환합니다."""
     print(f"An unexpected error occurred: {exc}")
     return JSONResponse(
         status_code=500,

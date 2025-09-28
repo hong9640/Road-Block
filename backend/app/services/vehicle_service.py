@@ -41,9 +41,6 @@ async def update_vehicle_name(db: AsyncSession, id: int, car_name: str) -> model
     return vehicle
 
 async def delete_vehicle_by_id(db: AsyncSession, id: int) -> None:
-    """
-    ID를 사용하여 차량을 논리적으로 삭제합니다. (실제로는 deleted_at 필드를 업데이트)
-    """
     vehicle = await get_vehicle_by_id(db, id=id)
     if not vehicle:
         # 💡 차량이 없을 경우 예외 처리 (예시)
@@ -56,7 +53,6 @@ async def delete_vehicle_by_id(db: AsyncSession, id: int) -> None:
     await db.refresh(vehicle)
 
 async def get_all_vehicle_events(db: AsyncSession) -> List[EventResponse]:
-    """모든 차량 이벤트 로그를 조회합니다."""
     statement = (
         select(models.Event)
         .order_by(models.Event.created_at.desc())

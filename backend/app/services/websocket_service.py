@@ -38,11 +38,9 @@ HandlerResult = Tuple[Optional[bytes], Optional[Dict[str, bytes]], Optional[byte
 # 헬퍼 함수: 패킷 생성 및 HMAC 계산
 
 def _calculate_hmac(data: bytes) -> bytes:
-    """주어진 데이터의 HMAC을 계산합니다."""
     return hmac.new(SECRET_KEY, data, hashlib.sha256).digest()[:16]
 
 def _create_ros_error_packet(error_code: ErrorCode) -> bytes:
-    """ROS 클라이언트에게 보낼 NACK 에러 패킷을 생성합니다."""
     header = struct.pack('<BB', ErrorMessageType.NACK_ERROR, error_code.value)
     return header + _calculate_hmac(header)
 
@@ -132,7 +130,6 @@ async def handle_location_update(data: bytes) -> HandlerResult:
 
 
 async def handle_vehicle_status_update(data: bytes) -> HandlerResult:
-    """차량 상태 정보(0x12)를 처리합니다."""
     try:
         _, vehicle_id, fuel, collision, status_int, received_hmac = struct.unpack('<BIBBB16s', data)
         if not hmac.compare_digest(_calculate_hmac(data[:8]), received_hmac):
@@ -162,7 +159,6 @@ async def handle_vehicle_status_update(data: bytes) -> HandlerResult:
 
 
 async def handle_incoming_event(data: bytes) -> HandlerResult:
-    """검거 이벤트(0xFE, 0xFD)를 처리합니다."""
     try:
         message_type = data[0]
         event_status_map = {
