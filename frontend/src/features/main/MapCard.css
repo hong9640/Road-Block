@@ -1,0 +1,45 @@
+@reference "tailwindcss";
+
+@layer components {
+  /* 카드 컨테이너 */
+  .map-card {
+    @apply block w-full overflow-hidden rounded-2xl
+         border-2 border-gray-300
+         transition-colors duration-300 ease-in-out
+         focus:outline-none cursor-pointer
+         disabled:opacity-50 disabled:pointer-events-none;
+
+    background-color: var(--color-card);
+    color: var(--color-card-foreground);
+  }
+
+  .map-card:hover {
+    @apply border-gray-700;
+  }
+
+  .map-card:focus-visible {
+    @apply ring-2;
+    --tw-ring-color: var(--color-ring); /* ring-ring/60 대체 */
+  }
+
+  /* 이미지 영역 */
+  .map-card-img-container {
+    @apply relative w-full overflow-hidden;
+  }
+  .map-card-img {
+    @apply h-full w-full object-cover transition-transform duration-300 ease-out group-hover:scale-[1.02];
+    mask-image: linear-gradient(
+      to bottom,
+      rgba(0, 0, 0, 1) 70%,
+      rgba(0, 0, 0, 0) 100%
+    );
+  }
+  .map-card-img-overlay {
+    @apply pointer-events-none absolute inset-0 rounded-t-2xl ring-1 ring-black/0;
+  }
+
+  /* 라벨 */
+  .map-card-label {
+    @apply px-4 pt-2 pb-4 text-sm font-medium;
+  }
+}

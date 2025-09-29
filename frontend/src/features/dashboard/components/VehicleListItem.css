@@ -1,0 +1,33 @@
+@reference "tailwindcss";
+
+@layer components {
+  /* 차량 아이템 전체 */
+  .vehicle-item {
+    @apply mx-2 mb-2 border border-gray-300 bg-sky-100 text-black;
+  }
+
+  /* summary 부분 */
+  .vehicle-summary {
+    @apply flex justify-between items-center
+           px-2 py-1 cursor-pointer select-none font-medium;
+  }
+  .vehicle-type {
+    @apply text-xs text-gray-700;
+  }
+
+  /* 상세 내용 */
+  .vehicle-details {
+    @apply px-3 pb-3 pt-1 text-sm space-y-2;
+  }
+  .vehicle-detail-row {
+    @apply flex justify-between text-gray-600;
+  }
+
+  /* 액션 버튼 영역 */
+  .vehicle-actions {
+    @apply pt-2 grid grid-cols-2 gap-2;
+  }
+  .vehicle-action-btn {
+    @apply border border-gray-400 rounded px-2 py-1 hover:bg-gray-200;
+  }
+}
