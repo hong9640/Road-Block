@@ -1,0 +1,122 @@
+<launch>
+  <arg name="env_path" default="/home/ubuntu/S13P21A507/sim/simulator2/catkin_ws/.env" />
+  
+  <node pkg="road_block" type="chase_manager.py" name="chase_manager" output="screen" respawn="true">
+    <param name="env_path" value="$(arg env_path)" />
+    <remap from="/fugitive_collision" to="/Ego_2/CollisionData" />
+  </node>
+
+  <group ns="police_car_1">
+    <node pkg="road_block" type="vehicle_registration.py" name="registration" output="screen">
+      <param name="car_name" value="POLICE_1" />
+      <param name="vehicle_type" value="0" />
+      <param name="vehicle_id_override" value="0" />
+      <param name="env_path" value="$(arg env_path)" />
+      <remap from="/Ego_topic" to="/Ego_topic" />
+    </node>
+
+    <node pkg="road_block" type="vehicle_locate_info.py" name="location_updater" output="screen" respawn="true">
+      <param name="vehicle_id_override" value="0" />
+      <param name="env_path" value="$(arg env_path)" />
+      <remap from="/Ego_topic" to="/Ego_topic" />
+    </node>
+
+    <node pkg="road_block" type="vehicle_stat_info.py" name="status_sender" output="screen" respawn="true">
+      <param name="vehicle_id_override" value="0" />
+      <param name="env_path" value="$(arg env_path)" />
+      <remap from="/Ego_topic" to="/Ego_topic" />
+      <remap from="/CollisionData" to="/CollisionData" />
+    </node>
+
+    <node pkg="road_block" type="LaneFollowingPursuitNode.py" name="pursuit_controller" output="screen">
+      <remap from="/Ego_topic" to="/Ego_topic" />
+      <remap from="/ctrl_cmd" to="/ctrl_cmd" />
+      <remap from="/Ego_2/Ego_topic" to="/Ego_2/Ego_topic" />
+      <remap from="/chase_status" to="/chase_status" /> </node>
+
+  </group>
+
+  <group ns="police_car_2">
+    <node pkg="road_block" type="vehicle_registration.py" name="registration" output="screen">
+      <param name="car_name" value="POLICE_2" />
+      <param name="vehicle_type" value="0" />
+      <param name="vehicle_id_override" value="3" />
+      <param name="env_path" value="$(arg env_path)" />
+      <remap from="/Ego_topic" to="/Ego_3/Ego_topic" />
+    </node>
+
+    <node pkg="road_block" type="vehicle_locate_info.py" name="location_updater" output="screen" respawn="true">
+      <param name="vehicle_id_override" value="3" />
+      <param name="env_path" value="$(arg env_path)" />
+      <remap from="/Ego_topic" to="/Ego_3/Ego_topic" />
+    </node>
+
+    <node pkg="road_block" type="vehicle_stat_info.py" name="status_sender" output="screen" respawn="true">
+      <param name="vehicle_id_override" value="3" />
+      <param name="env_path" value="$(arg env_path)" />
+      <remap from="/Ego_topic" to="/Ego_3/Ego_topic" />
+      <remap from="/CollisionData" to="/Ego_3/CollisionData" />
+    </node>
+
+    <node pkg="road_block" type="LaneFollowingPursuitNode.py" name="pursuit_controller" output="screen">
+      <remap from="/Ego_topic" to="/Ego_3/Ego_topic" />
+      <remap from="/ctrl_cmd" to="/Ego_3/ctrl_cmd" />
+      <remap from="/Ego_2/Ego_topic" to="/Ego_2/Ego_topic" />
+      <remap from="/chase_status" to="/chase_status" /> </node>
+
+  </group>
+
+  <group ns="police_car_3">
+    <node pkg="road_block" type="vehicle_registration.py" name="registration" output="screen">
+      <param name="car_name" value="POLICE_3" />
+      <param name="vehicle_type" value="0" />
+      <param name="vehicle_id_override" value="4" />
+      <param name="env_path" value="$(arg env_path)" />
+      <remap from="/Ego_topic" to="/Ego_4/Ego_topic" />
+    </node>
+
+    <node pkg="road_block" type="vehicle_locate_info.py" name="location_updater" output="screen" respawn="true">
+      <param name="vehicle_id_override" value="4" />
+      <param name="env_path" value="$(arg env_path)" />
+      <remap from="/Ego_topic" to="/Ego_4/Ego_topic" />
+    </node>
+
+    <node pkg="road_block" type="vehicle_stat_info.py" name="status_sender" output="screen" respawn="true">
+      <param name="vehicle_id_override" value="4" />
+      <param name="env_path" value="$(arg env_path)" />
+      <remap from="/Ego_topic" to="/Ego_4/Ego_topic" />
+      <remap from="/CollisionData" to="/Ego_4/CollisionData" />
+    </node>
+
+    <node pkg="road_block" type="LaneFollowingPursuitNode.py" name="pursuit_controller" output="screen">
+      <remap from="/Ego_topic" to="/Ego_4/Ego_topic" />
+      <remap from="/ctrl_cmd" to="/Ego_4/ctrl_cmd" />
+      <remap from="/Ego_2/Ego_topic" to="/Ego_2/Ego_topic" />
+      <remap from="/chase_status" to="/chase_status" /> </node>
+
+  </group>
+
+  <group ns="runner_car">
+    <node pkg="road_block" type="vehicle_registration.py" name="registration" output="screen">
+      <param name="car_name" value="RUNNER" />
+      <param name="vehicle_type" value="1" />
+      <param name="vehicle_id_override" value="2" />
+      <param name="env_path" value="$(arg env_path)" />
+      <remap from="/Ego_topic" to="/Ego_2/Ego_topic" />
+    </node>
+
+    <node pkg="road_block" type="vehicle_locate_info.py" name="location_updater" output="screen" respawn="true">
+      <param name="vehicle_id_override" value="2" />
+      <param name="env_path" value="$(arg env_path)" />
+      <remap from="/Ego_topic" to="/Ego_2/Ego_topic" />
+    </node>
+    
+    <node pkg="road_block" type="vehicle_stat_info.py" name="catch_handler" output="screen" respawn="true">
+      <param name="env_path" value="$(arg env_path)" />
+      <param name="vehicle_id_override" value="2" />
+      <param name="vehicle_type" value="1" /> 
+      <remap from="/Ego_topic" to="/Ego_2/Ego_topic" />
+      <remap from="/CollisionData" to="/Ego_2/CollisionData" />
+    </node>
+  </group>
+</launch>
